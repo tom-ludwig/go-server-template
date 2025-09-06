@@ -1,0 +1,172 @@
+openapi: 3.0.0
+info:
+  title: Go Server Template
+  version: 1.0.0
+  description: The Example API specs for my go server template.
+paths:
+  /user:
+    get:
+      operationId: getUser
+      tags:
+        - users
+      summary: Get user
+      responses:
+        "200":
+          description:
+            The request was successful, and the server has returned the
+            requested resource in the response body.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "400":
+          description: 400 Bad Request
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  errors:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        message:
+                          type: string
+                      required:
+                        - message
+                required:
+                  - message
+        "404":
+          description: 404 not found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                required:
+                  - message
+      parameters:
+        - in: query
+          name: user_id
+          required: true
+          style: form
+          description: ""
+          explode: true
+          schema:
+            type: string
+          allowReserved: false
+    post:
+      operationId: createUser
+      tags:
+        - users
+      summary: Create user
+      responses:
+        "201":
+          description: The request was successful, and a new resource was created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/InternalServerErrror"
+      requestBody:
+        required: true
+        description: ""
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserCreate"
+components:
+  schemas:
+    User:
+      type: object
+      properties:
+        last_name:
+          type: string
+        first_name:
+          type: string
+        user_id:
+          type: string
+        email:
+          type: string
+      required:
+        - last_name
+        - first_name
+        - user_id
+        - email
+      description: ""
+    UserCreate:
+      type: object
+      properties:
+        last_name:
+          type: string
+        first_name:
+          type: string
+        email:
+          type: string
+      required:
+        - last_name
+        - first_name
+        - email
+      description: Data transfer object for creating a new User.
+      x-fiddle-dto-info:
+        baseSchemaName: User
+  responses:
+    BadRequest:
+      content:
+        application/json:
+          schema:
+            type: object
+            required:
+              - message
+            properties:
+              errors:
+                type: array
+                items:
+                  type: object
+                  required:
+                    - message
+                  properties:
+                    message:
+                      type: string
+              message:
+                type: string
+      description:
+        The server could not understand the request due to invalid syntax.
+        The client should modify the request and try again.
+    Conflict:
+      description: The request could not be completed due to a conflict with the
+        current state of the resource. Resolve the conflict and try again.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              message:
+                type: string
+            required:
+              - message
+    InternalServerErrror:
+      description:
+        The server encountered an unexpected condition that prevented it
+        from fulfilling the request. Report the issue to the support team if it
+        persists.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              message:
+                type: string
+            required:
+              - message
+  securitySchemes: {}
+tags:
+  - name: users
