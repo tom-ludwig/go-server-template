@@ -9,11 +9,15 @@ import (
 var _ api.StrictServerInterface = (*Server)(nil)
 
 type Server struct {
+	HealthHandler
 	UserHandler
 }
 
 func NewServer(queries *repository.Queries) *Server {
 	return &Server{
+		HealthHandler: HealthHandler{
+			queries: queries,
+		},
 		UserHandler: UserHandler{
 			Queries: queries,
 		},
