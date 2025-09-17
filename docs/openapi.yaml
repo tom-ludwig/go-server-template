@@ -83,6 +83,100 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/UserCreate"
+  /healthz:
+    get:
+      summary: Get Health
+      deprecated: false
+      description: Returns a 200 status code.
+      tags: []
+      parameters: []
+      responses:
+        "200":
+          description: ""
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                required:
+                  - status
+          headers: {}
+      security: []
+  /livez:
+    get:
+      summary: Liveness Probe
+      deprecated: false
+      description: >-
+        Kubernetes uses this to determine if your container needs to be
+        restarted
+
+        Should check if your application process is still running and responsive
+      tags: []
+      parameters: []
+      responses:
+        "200":
+          description: ""
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                required:
+                  - status
+          headers: {}
+      security: []
+  /readyz:
+    get:
+      summary: Readiness Probe
+      deprecated: false
+      description: >-
+        Tells Kubernetes when your pod is ready to receive traffic
+
+        Should verify dependencies are available (database connections, external
+        APIs, etc.)
+
+        If this fails, Kubernetes removes the pod from service endpoints until
+        it passes
+      tags: []
+      parameters: []
+      responses:
+        "200":
+          description: ""
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                required:
+                  - status
+          headers: {}
+        "503":
+          description: ""
+          content:
+            application/json:
+              schema:
+                title: ""
+                type: object
+                properties:
+                  successfullChecks:
+                    type: array
+                    items:
+                      type: string
+                  failedChecks:
+                    type: array
+                    items:
+                      type: string
+                required:
+                  - successfullChecks
+                  - failedChecks
+          headers: {}
+      security: []
 components:
   schemas:
     User:
