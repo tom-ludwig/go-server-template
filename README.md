@@ -81,7 +81,7 @@ func NewServer(db *dbpool.Pool) *Server {
 
 - Install the Requirements
 - Copy the example `.env.example` file and adjust to your use case: `cp .env.example .env`
-- Perpare local development (start postgres): `make dev-prepare`
+- Perpare local development (start postgres): `make start-dev-db`
 - Run migrations: `make up`
 - Generate the API and DB code: `make generate`
 - Start the server: `make run`
