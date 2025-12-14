@@ -10,6 +10,7 @@ Tools which help designing an API (not sponsored or affiliated):
 
 - [Features](#features)
 - [Directory Structure](#directory-structure)
+- [Philosophy](#philosophy)
 - [Requirements](#requirements)
 - [Configuration](#configuration)
 - [Migrations](#migrations)
@@ -51,6 +52,20 @@ Tools which help designing an API (not sponsored or affiliated):
 ├── sqlc.yaml                 # sqlc configuration
 └── oapi-codegen.yaml         # oapi-codegen configuration
 ```
+
+## Philosophy
+
+This template follows a code-generation-first approach:
+
+1. **API-First Design** - The API is always designed in OpenAPI first, then boilerplate code is generated. This ensures the API contract is the single source of truth.
+
+2. **Handler-Based Architecture** - Handlers are written to handle incoming HTTP requests. Each handler implements one specific endpoint operation.
+
+3. **Single Responsibility** - One handler only handles one specific responsibility. This keeps handlers focused, testable, and maintainable.
+
+4. **Interface Compliance** - All handlers together conform to the generated server interface (the complete API). This ensures type safety and compile-time verification that all endpoints are implemented.
+
+5. **SQL-First Database Layer** - SQL is written raw and boilerplate code is generated via sqlc. This provides type-safe database access while keeping full control over SQL queries.
 
 # Requirements
 
