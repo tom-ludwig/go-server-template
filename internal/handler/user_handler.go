@@ -2,6 +2,8 @@ package handler
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 
 	"com.tom-ludwig/go-server-template/internal/api"
 	"com.tom-ludwig/go-server-template/internal/repository"
@@ -22,7 +24,17 @@ func (u *UserHandler) GetUser(ctx context.Context, request api.GetUserRequestObj
 	}
 	user, err := u.Queries.GetUser(ctx, userUUID)
 	if err != nil {
-		return api.GetUser404JSONResponse{Message: "User not found"}, nil
+		if errors.Is(err, sql.ErrNoRows) {
+			return api.GetUser404JSONResponse{Message: "User not found"}, nil
+		}
+
+		return api.GetUser404JSONResponse{Message: "Error 500"}, nil
+		// TODO: Return 500
+		// return api.{
+		// 	InternalServerErrrorJSONResponse: api.InternalServerErrrorJSONResponse{
+		// 		Message: "Failed to get user",
+		// 	},
+		// }, nil
 	}
 	return api.GetUser200JSONResponse{
 		UserId:    user.UserID.String(),
