@@ -20,16 +20,16 @@ Tools which help designing an API (not sponsored or affiliated):
 
 ## Features
 
-- **Chi Router** - Lightweight, fast HTTP router
-- **OpenAPI Code Generation** - Generate server code from OpenAPI spec
-- **PostgreSQL** - Database support with sqlc for type-safe queries
-- **Database Migrations** - Version-controlled schema migrations
-- **CORS Support** - Configurable CORS middleware
-- **Security Headers** - Security headers middleware
-- **Request Validation** - OpenAPI-based request validation
-- **Colored Logging** - Colored request logs in debug mode
-- **Route Listing** - Automatic route listing on startup (debug mode)
-- **Environment Configuration** - Configuration via .env file
+- **Chi Router:** Lightweight, fast HTTP router
+- **OpenAPI Code Generation:** Generate server code from OpenAPI spec
+- **PostgreSQL:** Database support with sqlc for type-safe queries
+- **Database Migrations:** Version-controlled schema migrations
+- **CORS Support:** Configurable CORS middleware
+- **Security Headers:** Security headers middleware
+- **Request Validation:** OpenAPI-based request validation
+- **Colored Logging:** Colored request logs in debug mode
+- **Route Listing:** Automatic route listing on startup (debug mode)
+- **Environment Configuration:** Configuration via .env file
 
 ## Directory Structure
 
@@ -57,15 +57,15 @@ Tools which help designing an API (not sponsored or affiliated):
 
 This template follows a code-generation-first approach:
 
-1. **API-First Design** - The API is always designed in OpenAPI first, then boilerplate code is generated. This ensures the API contract is the single source of truth.
+1. **API-First Design:** The API is always designed in OpenAPI first, then boilerplate code is generated. This ensures the API contract is the single source of truth.
 
-2. **Handler-Based Architecture** - Handlers are written to handle incoming HTTP requests. Each handler implements one specific endpoint operation.
+2. **Handler-Based:** Handlers are written to handle incoming HTTP requests. Each handler implements one specific endpoint operation.
 
-3. **Single Responsibility** - One handler only handles one specific responsibility. This keeps handlers focused, testable, and maintainable.
+3. **Single Responsibility:** One handler only handles one specific responsibility. This keeps handlers focused, testable, and maintainable.
 
-4. **Interface Compliance** - All handlers together conform to the generated server interface (the complete API). This ensures type safety and compile-time verification that all endpoints are implemented.
+4. **Interface Compliance:** All handlers together conform to the generated server interface (the complete API). This ensures type safety and compile-time verification that all endpoints are implemented.
 
-5. **SQL-First Database Layer** - SQL is written raw and boilerplate code is generated via sqlc. This provides type-safe database access while keeping full control over SQL queries.
+5. **SQL-First:** SQL is written raw and boilerplate code is generated via `sqlc`. This provides type-safe database access while keeping full control over SQL queries.
 
 # Requirements
 
