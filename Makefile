@@ -25,10 +25,13 @@ down:
 	migrate -path $(MIGRATIONS_DIR) -database $(DB_URL) down
 
 start-dev-db:
-	$(CONTAINER_CMD) compose -f docker-compose.dev.yaml up
+	$(CONTAINER_CMD) compose -f docker-compose.dev.yaml up -d
+
+stop-dev-db:
+	$(CONTAINER_CMD) compose -f docker-compose.dev.yaml down
 
 psql:
-	$(CONTAINER_CMD) exec -it postgres psql -U user -d orbis
+	$(CONTAINER_CMD) exec -it postgres psql -U user -d app
 
 sqlc-gen-code:
 	@echo "→ Generating database go code from SQL queries..."

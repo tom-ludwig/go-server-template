@@ -1,16 +1,16 @@
 services:
   db:
-    image: postgres:15
+    image: postgres:18
     container_name: postgres
     restart: always
     environment:
       POSTGRES_USER: user
       POSTGRES_PASSWORD: password
-      POSTGRES_DB: orbis
+      POSTGRES_DB: app
     ports:
       - "5432:5432"
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      - pgdata:/var/lib/postgresql
 
 volumes:
   pgdata:
