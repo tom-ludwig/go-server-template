@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"strconv"
 	"strings"
@@ -33,7 +34,7 @@ type Config struct {
 }
 
 func Load() *Config {
-	return &Config{
+	cfg := &Config{
 		// Server
 		Port:      getEnv("PORT", "8080"),
 		DebugMode: getEnvBool("DEBUG_MODE", false),
@@ -58,6 +59,49 @@ func Load() *Config {
 		CORSAllowCredentials: getEnvBool("CORS_ALLOW_CREDENTIALS", true),
 		CORSMaxAge:           getEnvInt("CORS_MAX_AGE", 300),
 	}
+
+	// Validate configuration
+	if err := cfg.Validate(); err != nil {
+		panic(fmt.Sprintf("Invalid configuration: %v", err))
+	}
+
+	return cfg
+}
+
+func (c *Config) Validate() error {
+	// Validate port
+	if c.Port == "" {
+		return fmt.Errorf("PORT cannot be empty")
+	}
+	if portNum, err := strconv.Atoi(c.Port); err != nil || portNum < 1 || portNum > 65535 {
+		return fmt.Errorf("PORT must be a valid port number (1-65535), got: %s", c.Port)
+	}
+
+	// Validate database configuration
+	if c.PGHost == "" {
+		return fmt.Errorf("PG_HOST cannot be empty")
+	}
+	if c.PGPort == "" {
+		return fmt.Errorf("PG_PORT cannot be empty")
+	}
+	if portNum, err := strconv.Atoi(c.PGPort); err != nil || portNum < 1 || portNum > 65535 {
+		return fmt.Errorf("PG_PORT must be a valid port number (1-65535), got: %s", c.PGPort)
+	}
+	if c.PGDB == "" {
+		return fmt.Errorf("PG_DB cannot be empty")
+	}
+	if c.PGUser == "" {
+		return fmt.Errorf("PG_USER cannot be empty")
+	}
+	if !c.PGLocal && c.PGPassword == "" {
+		return fmt.Errorf("PG_PASSWORD cannot be empty when PG_LOCAL is false")
+	}
+
+	if c.CORSMaxAge < 0 {
+		return fmt.Errorf("CORS_MAX_AGE must be non-negative, got: %d", c.CORSMaxAge)
+	}
+
+	return nil
 }
 
 func getEnv(key, fallback string) string {
