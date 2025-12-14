@@ -17,3 +17,5 @@ vendor/
 go.work
 
 .env
+
+.vscode
