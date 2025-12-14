@@ -16,9 +16,9 @@ import (
 	"strings"
 
 	"github.com/getkin/kin-openapi/openapi3"
-	"github.com/gin-gonic/gin"
+	"github.com/go-chi/chi/v5"
 	"github.com/oapi-codegen/runtime"
-	strictgin "github.com/oapi-codegen/runtime/strictmiddleware/gin"
+	strictnethttp "github.com/oapi-codegen/runtime/strictmiddleware/nethttp"
 )
 
 // User defines model for User.
@@ -66,71 +66,108 @@ type CreateUserJSONRequestBody = UserCreate
 type ServerInterface interface {
 	// Get Health
 	// (GET /healthz)
-	GetHealthz(c *gin.Context)
+	GetHealthz(w http.ResponseWriter, r *http.Request)
 	// Liveness Probe
 	// (GET /livez)
-	GetLivez(c *gin.Context)
+	GetLivez(w http.ResponseWriter, r *http.Request)
 	// Readiness Probe
 	// (GET /readyz)
-	GetReadyz(c *gin.Context)
+	GetReadyz(w http.ResponseWriter, r *http.Request)
 	// Get user
 	// (GET /user)
-	GetUser(c *gin.Context, params GetUserParams)
+	GetUser(w http.ResponseWriter, r *http.Request, params GetUserParams)
 	// Create user
 	// (POST /user)
-	CreateUser(c *gin.Context)
+	CreateUser(w http.ResponseWriter, r *http.Request)
+}
+
+// Unimplemented server implementation that returns http.StatusNotImplemented for each endpoint.
+
+type Unimplemented struct{}
+
+// Get Health
+// (GET /healthz)
+func (_ Unimplemented) GetHealthz(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Liveness Probe
+// (GET /livez)
+func (_ Unimplemented) GetLivez(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Readiness Probe
+// (GET /readyz)
+func (_ Unimplemented) GetReadyz(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Get user
+// (GET /user)
+func (_ Unimplemented) GetUser(w http.ResponseWriter, r *http.Request, params GetUserParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Create user
+// (POST /user)
+func (_ Unimplemented) CreateUser(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
 }
 
 // ServerInterfaceWrapper converts contexts to parameters.
 type ServerInterfaceWrapper struct {
 	Handler            ServerInterface
 	HandlerMiddlewares []MiddlewareFunc
-	ErrorHandler       func(*gin.Context, error, int)
+	ErrorHandlerFunc   func(w http.ResponseWriter, r *http.Request, err error)
 }
 
-type MiddlewareFunc func(c *gin.Context)
+type MiddlewareFunc func(http.Handler) http.Handler
 
 // GetHealthz operation middleware
-func (siw *ServerInterfaceWrapper) GetHealthz(c *gin.Context) {
+func (siw *ServerInterfaceWrapper) GetHealthz(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetHealthz(w, r)
+	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
+		handler = middleware(handler)
 	}
 
-	siw.Handler.GetHealthz(c)
+	handler.ServeHTTP(w, r)
 }
 
 // GetLivez operation middleware
-func (siw *ServerInterfaceWrapper) GetLivez(c *gin.Context) {
+func (siw *ServerInterfaceWrapper) GetLivez(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetLivez(w, r)
+	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
+		handler = middleware(handler)
 	}
 
-	siw.Handler.GetLivez(c)
+	handler.ServeHTTP(w, r)
 }
 
 // GetReadyz operation middleware
-func (siw *ServerInterfaceWrapper) GetReadyz(c *gin.Context) {
+func (siw *ServerInterfaceWrapper) GetReadyz(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetReadyz(w, r)
+	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
+		handler = middleware(handler)
 	}
 
-	siw.Handler.GetReadyz(c)
+	handler.ServeHTTP(w, r)
 }
 
 // GetUser operation middleware
-func (siw *ServerInterfaceWrapper) GetUser(c *gin.Context) {
+func (siw *ServerInterfaceWrapper) GetUser(w http.ResponseWriter, r *http.Request) {
 
 	var err error
 
@@ -139,74 +176,174 @@ func (siw *ServerInterfaceWrapper) GetUser(c *gin.Context) {
 
 	// ------------- Required query parameter "user_id" -------------
 
-	if paramValue := c.Query("user_id"); paramValue != "" {
+	if paramValue := r.URL.Query().Get("user_id"); paramValue != "" {
 
 	} else {
-		siw.ErrorHandler(c, fmt.Errorf("Query argument user_id is required, but not found"), http.StatusBadRequest)
+		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "user_id"})
 		return
 	}
 
-	err = runtime.BindQueryParameter("form", true, true, "user_id", c.Request.URL.Query(), &params.UserId)
+	err = runtime.BindQueryParameter("form", true, true, "user_id", r.URL.Query(), &params.UserId)
 	if err != nil {
-		siw.ErrorHandler(c, fmt.Errorf("Invalid format for parameter user_id: %w", err), http.StatusBadRequest)
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "user_id", Err: err})
 		return
 	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetUser(w, r, params)
+	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
+		handler = middleware(handler)
 	}
 
-	siw.Handler.GetUser(c, params)
+	handler.ServeHTTP(w, r)
 }
 
 // CreateUser operation middleware
-func (siw *ServerInterfaceWrapper) CreateUser(c *gin.Context) {
+func (siw *ServerInterfaceWrapper) CreateUser(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateUser(w, r)
+	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
-		middleware(c)
-		if c.IsAborted() {
-			return
-		}
+		handler = middleware(handler)
 	}
 
-	siw.Handler.CreateUser(c)
+	handler.ServeHTTP(w, r)
 }
 
-// GinServerOptions provides options for the Gin server.
-type GinServerOptions struct {
-	BaseURL      string
-	Middlewares  []MiddlewareFunc
-	ErrorHandler func(*gin.Context, error, int)
+type UnescapedCookieParamError struct {
+	ParamName string
+	Err       error
 }
 
-// RegisterHandlers creates http.Handler with routing matching OpenAPI spec.
-func RegisterHandlers(router gin.IRouter, si ServerInterface) {
-	RegisterHandlersWithOptions(router, si, GinServerOptions{})
+func (e *UnescapedCookieParamError) Error() string {
+	return fmt.Sprintf("error unescaping cookie parameter '%s'", e.ParamName)
 }
 
-// RegisterHandlersWithOptions creates http.Handler with additional options
-func RegisterHandlersWithOptions(router gin.IRouter, si ServerInterface, options GinServerOptions) {
-	errorHandler := options.ErrorHandler
-	if errorHandler == nil {
-		errorHandler = func(c *gin.Context, err error, statusCode int) {
-			c.JSON(statusCode, gin.H{"msg": err.Error()})
+func (e *UnescapedCookieParamError) Unwrap() error {
+	return e.Err
+}
+
+type UnmarshalingParamError struct {
+	ParamName string
+	Err       error
+}
+
+func (e *UnmarshalingParamError) Error() string {
+	return fmt.Sprintf("Error unmarshaling parameter %s as JSON: %s", e.ParamName, e.Err.Error())
+}
+
+func (e *UnmarshalingParamError) Unwrap() error {
+	return e.Err
+}
+
+type RequiredParamError struct {
+	ParamName string
+}
+
+func (e *RequiredParamError) Error() string {
+	return fmt.Sprintf("Query argument %s is required, but not found", e.ParamName)
+}
+
+type RequiredHeaderError struct {
+	ParamName string
+	Err       error
+}
+
+func (e *RequiredHeaderError) Error() string {
+	return fmt.Sprintf("Header parameter %s is required, but not found", e.ParamName)
+}
+
+func (e *RequiredHeaderError) Unwrap() error {
+	return e.Err
+}
+
+type InvalidParamFormatError struct {
+	ParamName string
+	Err       error
+}
+
+func (e *InvalidParamFormatError) Error() string {
+	return fmt.Sprintf("Invalid format for parameter %s: %s", e.ParamName, e.Err.Error())
+}
+
+func (e *InvalidParamFormatError) Unwrap() error {
+	return e.Err
+}
+
+type TooManyValuesForParamError struct {
+	ParamName string
+	Count     int
+}
+
+func (e *TooManyValuesForParamError) Error() string {
+	return fmt.Sprintf("Expected one value for %s, got %d", e.ParamName, e.Count)
+}
+
+// Handler creates http.Handler with routing matching OpenAPI spec.
+func Handler(si ServerInterface) http.Handler {
+	return HandlerWithOptions(si, ChiServerOptions{})
+}
+
+type ChiServerOptions struct {
+	BaseURL          string
+	BaseRouter       chi.Router
+	Middlewares      []MiddlewareFunc
+	ErrorHandlerFunc func(w http.ResponseWriter, r *http.Request, err error)
+}
+
+// HandlerFromMux creates http.Handler with routing matching OpenAPI spec based on the provided mux.
+func HandlerFromMux(si ServerInterface, r chi.Router) http.Handler {
+	return HandlerWithOptions(si, ChiServerOptions{
+		BaseRouter: r,
+	})
+}
+
+func HandlerFromMuxWithBaseURL(si ServerInterface, r chi.Router, baseURL string) http.Handler {
+	return HandlerWithOptions(si, ChiServerOptions{
+		BaseURL:    baseURL,
+		BaseRouter: r,
+	})
+}
+
+// HandlerWithOptions creates http.Handler with additional options
+func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handler {
+	r := options.BaseRouter
+
+	if r == nil {
+		r = chi.NewRouter()
+	}
+	if options.ErrorHandlerFunc == nil {
+		options.ErrorHandlerFunc = func(w http.ResponseWriter, r *http.Request, err error) {
+			http.Error(w, err.Error(), http.StatusBadRequest)
 		}
 	}
-
 	wrapper := ServerInterfaceWrapper{
 		Handler:            si,
 		HandlerMiddlewares: options.Middlewares,
-		ErrorHandler:       errorHandler,
+		ErrorHandlerFunc:   options.ErrorHandlerFunc,
 	}
 
-	router.GET(options.BaseURL+"/healthz", wrapper.GetHealthz)
-	router.GET(options.BaseURL+"/livez", wrapper.GetLivez)
-	router.GET(options.BaseURL+"/readyz", wrapper.GetReadyz)
-	router.GET(options.BaseURL+"/user", wrapper.GetUser)
-	router.POST(options.BaseURL+"/user", wrapper.CreateUser)
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/healthz", wrapper.GetHealthz)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/livez", wrapper.GetLivez)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/readyz", wrapper.GetReadyz)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/user", wrapper.GetUser)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/user", wrapper.CreateUser)
+	})
+
+	return r
 }
 
 type BadRequestJSONResponse struct {
@@ -388,150 +525,161 @@ type StrictServerInterface interface {
 	CreateUser(ctx context.Context, request CreateUserRequestObject) (CreateUserResponseObject, error)
 }
 
-type StrictHandlerFunc = strictgin.StrictGinHandlerFunc
-type StrictMiddlewareFunc = strictgin.StrictGinMiddlewareFunc
+type StrictHandlerFunc = strictnethttp.StrictHTTPHandlerFunc
+type StrictMiddlewareFunc = strictnethttp.StrictHTTPMiddlewareFunc
+
+type StrictHTTPServerOptions struct {
+	RequestErrorHandlerFunc  func(w http.ResponseWriter, r *http.Request, err error)
+	ResponseErrorHandlerFunc func(w http.ResponseWriter, r *http.Request, err error)
+}
 
 func NewStrictHandler(ssi StrictServerInterface, middlewares []StrictMiddlewareFunc) ServerInterface {
-	return &strictHandler{ssi: ssi, middlewares: middlewares}
+	return &strictHandler{ssi: ssi, middlewares: middlewares, options: StrictHTTPServerOptions{
+		RequestErrorHandlerFunc: func(w http.ResponseWriter, r *http.Request, err error) {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+		},
+		ResponseErrorHandlerFunc: func(w http.ResponseWriter, r *http.Request, err error) {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		},
+	}}
+}
+
+func NewStrictHandlerWithOptions(ssi StrictServerInterface, middlewares []StrictMiddlewareFunc, options StrictHTTPServerOptions) ServerInterface {
+	return &strictHandler{ssi: ssi, middlewares: middlewares, options: options}
 }
 
 type strictHandler struct {
 	ssi         StrictServerInterface
 	middlewares []StrictMiddlewareFunc
+	options     StrictHTTPServerOptions
 }
 
 // GetHealthz operation middleware
-func (sh *strictHandler) GetHealthz(ctx *gin.Context) {
+func (sh *strictHandler) GetHealthz(w http.ResponseWriter, r *http.Request) {
 	var request GetHealthzRequestObject
 
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
 		return sh.ssi.GetHealthz(ctx, request.(GetHealthzRequestObject))
 	}
 	for _, middleware := range sh.middlewares {
 		handler = middleware(handler, "GetHealthz")
 	}
 
-	response, err := handler(ctx, request)
+	response, err := handler(r.Context(), w, r, request)
 
 	if err != nil {
-		ctx.Error(err)
-		ctx.Status(http.StatusInternalServerError)
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetHealthzResponseObject); ok {
-		if err := validResponse.VisitGetHealthzResponse(ctx.Writer); err != nil {
-			ctx.Error(err)
+		if err := validResponse.VisitGetHealthzResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
-		ctx.Error(fmt.Errorf("unexpected response type: %T", response))
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
 	}
 }
 
 // GetLivez operation middleware
-func (sh *strictHandler) GetLivez(ctx *gin.Context) {
+func (sh *strictHandler) GetLivez(w http.ResponseWriter, r *http.Request) {
 	var request GetLivezRequestObject
 
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
 		return sh.ssi.GetLivez(ctx, request.(GetLivezRequestObject))
 	}
 	for _, middleware := range sh.middlewares {
 		handler = middleware(handler, "GetLivez")
 	}
 
-	response, err := handler(ctx, request)
+	response, err := handler(r.Context(), w, r, request)
 
 	if err != nil {
-		ctx.Error(err)
-		ctx.Status(http.StatusInternalServerError)
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetLivezResponseObject); ok {
-		if err := validResponse.VisitGetLivezResponse(ctx.Writer); err != nil {
-			ctx.Error(err)
+		if err := validResponse.VisitGetLivezResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
-		ctx.Error(fmt.Errorf("unexpected response type: %T", response))
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
 	}
 }
 
 // GetReadyz operation middleware
-func (sh *strictHandler) GetReadyz(ctx *gin.Context) {
+func (sh *strictHandler) GetReadyz(w http.ResponseWriter, r *http.Request) {
 	var request GetReadyzRequestObject
 
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
 		return sh.ssi.GetReadyz(ctx, request.(GetReadyzRequestObject))
 	}
 	for _, middleware := range sh.middlewares {
 		handler = middleware(handler, "GetReadyz")
 	}
 
-	response, err := handler(ctx, request)
+	response, err := handler(r.Context(), w, r, request)
 
 	if err != nil {
-		ctx.Error(err)
-		ctx.Status(http.StatusInternalServerError)
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetReadyzResponseObject); ok {
-		if err := validResponse.VisitGetReadyzResponse(ctx.Writer); err != nil {
-			ctx.Error(err)
+		if err := validResponse.VisitGetReadyzResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
-		ctx.Error(fmt.Errorf("unexpected response type: %T", response))
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
 	}
 }
 
 // GetUser operation middleware
-func (sh *strictHandler) GetUser(ctx *gin.Context, params GetUserParams) {
+func (sh *strictHandler) GetUser(w http.ResponseWriter, r *http.Request, params GetUserParams) {
 	var request GetUserRequestObject
 
 	request.Params = params
 
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
 		return sh.ssi.GetUser(ctx, request.(GetUserRequestObject))
 	}
 	for _, middleware := range sh.middlewares {
 		handler = middleware(handler, "GetUser")
 	}
 
-	response, err := handler(ctx, request)
+	response, err := handler(r.Context(), w, r, request)
 
 	if err != nil {
-		ctx.Error(err)
-		ctx.Status(http.StatusInternalServerError)
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetUserResponseObject); ok {
-		if err := validResponse.VisitGetUserResponse(ctx.Writer); err != nil {
-			ctx.Error(err)
+		if err := validResponse.VisitGetUserResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
-		ctx.Error(fmt.Errorf("unexpected response type: %T", response))
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
 	}
 }
 
 // CreateUser operation middleware
-func (sh *strictHandler) CreateUser(ctx *gin.Context) {
+func (sh *strictHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
 	var request CreateUserRequestObject
 
 	var body CreateUserJSONRequestBody
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		ctx.Status(http.StatusBadRequest)
-		ctx.Error(err)
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
 		return
 	}
 	request.Body = &body
 
-	handler := func(ctx *gin.Context, request interface{}) (interface{}, error) {
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
 		return sh.ssi.CreateUser(ctx, request.(CreateUserRequestObject))
 	}
 	for _, middleware := range sh.middlewares {
 		handler = middleware(handler, "CreateUser")
 	}
 
-	response, err := handler(ctx, request)
+	response, err := handler(r.Context(), w, r, request)
 
 	if err != nil {
-		ctx.Error(err)
-		ctx.Status(http.StatusInternalServerError)
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(CreateUserResponseObject); ok {
-		if err := validResponse.VisitCreateUserResponse(ctx.Writer); err != nil {
-			ctx.Error(err)
+		if err := validResponse.VisitCreateUserResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
-		ctx.Error(fmt.Errorf("unexpected response type: %T", response))
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
 	}
 }
 
