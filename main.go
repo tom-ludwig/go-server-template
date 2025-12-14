@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"time"
 
 	"com.tom-ludwig/go-server-template/internal/config"
 	"com.tom-ludwig/go-server-template/internal/repository"
@@ -47,32 +48,46 @@ func main() {
 
 	port := fmt.Sprintf(":%s", cfg.Port)
 	server := &http.Server{
-		Addr:    port,
-		Handler: router,
+		Addr:         port,
+		Handler:      router,
+		ReadTimeout:  15 * time.Second,
+		WriteTimeout: 15 * time.Second,
+		IdleTimeout:  60 * time.Second,
 	}
 
 	fmt.Printf("Running on %s (Debug: %v)\n", port, cfg.DebugMode)
 	err = server.ListenAndServe()
-	if err != nil {
+	if err != nil && err != http.ErrServerClosed {
 		log.Fatalf("Error occurred while starting server: %s", err)
 	}
 }
 
 func connectToDatabase(cfg *config.Config) (*pgxpool.Pool, error) {
-	if !cfg.PGLocal {
-		dsn := fmt.Sprintf(
-			"host=%s port=%s dbname=%s user=%s sslmode=%s sslcert=%s sslkey=%s sslrootcert=%s",
-			cfg.PGHost, cfg.PGPort, cfg.PGDB, cfg.PGUser, cfg.PGSSLMode,
-			cfg.PGTLSCert, cfg.PGTLSKey, cfg.PGSSLRootCert,
-		)
+	// Create context with timeout for database connection
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
 
-		return pgxpool.New(context.Background(), dsn)
+	var dsn string
+	if !cfg.PGLocal {
+		dsn = fmt.Sprintf(
+			"host=%s port=%s dbname=%s user=%s sslmode=%s sslcert=%s sslkey=%s sslrootcert=%s password=%s",
+			cfg.PGHost, cfg.PGPort, cfg.PGDB, cfg.PGUser, cfg.PGSSLMode,
+			cfg.PGTLSCert, cfg.PGTLSKey, cfg.PGSSLRootCert, cfg.PGPassword,
+		)
 	} else {
-		dsn := fmt.Sprintf(
+		// Local development
+		dsn = fmt.Sprintf(
 			"host=%s port=%s dbname=%s user=%s password=%s sslmode=%s",
 			cfg.PGHost, cfg.PGPort, cfg.PGDB, cfg.PGUser, cfg.PGPassword, cfg.PGSSLMode,
 		)
-
-		return pgxpool.New(context.Background(), dsn)
 	}
+
+	// Parse config to validate DSN format, then create pool with context timeout
+	config, err := pgxpool.ParseConfig(dsn)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse database configuration: %w", err)
+	}
+
+	// Create pool with timeout context
+	return pgxpool.NewWithConfig(ctx, config)
 }
