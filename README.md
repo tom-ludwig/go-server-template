@@ -4,10 +4,20 @@ A template for a Go server with OpenAPI, PostgreSQL, and database migrations.
 
 [api-fiddle](https://api.api-fiddle.com/v1/public/resources/oas_api_3_1/tommys-organization-wzn/yellow-sheep-yssp)
 
-# Requiremnets
+# Requirements
 
 - sqlc: `brew install sqlc`
 - golang-migrate: `brew install golang-migrate`
+
+## Configuration
+
+Configuration is managed via environment variables. Copy `.env.example` to `.env` and adjust values:
+
+```bash
+cp .env.example .env
+```
+
+The Makefile automatically reads `.env` values for migrations and database commands.
 
 ## Migrations
 
@@ -17,7 +27,7 @@ Up: `make up`
 
 Down: `make down`
 
-Edit `DB_URL` in the Makefile. Migrations live in `migrations/`.
+Database connection settings are read from `.env` (see Configuration section above). Migrations live in `migrations/`.
 
 ## DB Schema
 
@@ -81,10 +91,11 @@ func NewServer(db *dbpool.Pool) *Server {
 
 - Install the Requirements
 - Copy the example `.env.example` file and adjust to your use case: `cp .env.example .env`
-- Perpare local development (start postgres): `make start-dev-db`
+- Prepare local development (start postgres): `make start-dev-db`
 - Run migrations: `make up`
 - Generate the API and DB code: `make generate`
-- Start the server: `make run`
+- Start the server: `make run` (or `go run main.go`)
+- In debug mode (`DEBUG_MODE=true`), routes are automatically printed on startup
 - Test the server:
 
 ```bash
