@@ -1,10 +1,13 @@
 package middleware
 
-import "github.com/gin-gonic/gin"
+import "net/http"
 
-func SecurityHeaders(c *gin.Context) {
-	c.Writer.Header().Set("X-Content-Type-Options", "nosniff")
-	c.Writer.Header().Set("X-Frame-Options", "DENY")
-	c.Writer.Header().Set("X-XSS-Protection", "1; mode=block")
-	c.Next()
+// SecurityHeaders sets security-related HTTP headers
+func SecurityHeaders(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		w.Header().Set("X-Frame-Options", "DENY")
+		w.Header().Set("X-XSS-Protection", "1; mode=block")
+		next.ServeHTTP(w, r)
+	})
 }
