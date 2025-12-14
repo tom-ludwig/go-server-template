@@ -1,6 +1,20 @@
+# Load .env file if it exists (using shell to source it)
+include .env
+export
+
 MIGRATIONS_DIR = migrations
-DB_URL = "postgres://user:password@localhost:5432/orbis?sslmode=disable"
-CONTAINER_CMD = podman
+CONTAINER_CMD ?= podman
+
+# Database connection defaults (can be overridden by .env file or environment)
+PG_HOST ?= localhost
+PG_PORT ?= 5432
+PG_DB ?= orbis
+PG_USER ?= user
+PG_PASSWORD ?= password
+PG_SSLMODE ?= disable
+
+# Construct DB_URL from environment variables
+DB_URL = postgres://$(PG_USER):$(PG_PASSWORD)@$(PG_HOST):$(PG_PORT)/$(PG_DB)?sslmode=$(PG_SSLMODE)
 
 download:
 	@echo "Download go.mod dependencies"
@@ -19,10 +33,12 @@ endif
 	migrate create -ext sql -dir $(MIGRATIONS_DIR) -seq $(NAME)
 
 up:
-	migrate -path $(MIGRATIONS_DIR) -database $(DB_URL) up
+	@echo "Running migrations with DB_URL: postgres://$(PG_USER)@$(PG_HOST):$(PG_PORT)/$(PG_DB)"
+	migrate -path $(MIGRATIONS_DIR) -database "$(DB_URL)" up
 
 down:
-	migrate -path $(MIGRATIONS_DIR) -database $(DB_URL) down
+	@echo "Rolling back migrations with DB_URL: postgres://$(PG_USER)@$(PG_HOST):$(PG_PORT)/$(PG_DB)"
+	migrate -path $(MIGRATIONS_DIR) -database "$(DB_URL)" down
 
 start-dev-db:
 	$(CONTAINER_CMD) compose -f docker-compose.dev.yaml up -d
@@ -31,7 +47,7 @@ stop-dev-db:
 	$(CONTAINER_CMD) compose -f docker-compose.dev.yaml down
 
 psql:
-	$(CONTAINER_CMD) exec -it postgres psql -U user -d app
+	$(CONTAINER_CMD) exec -it postgres psql -U $(PG_USER) -d $(PG_DB)
 
 sqlc-gen-code:
 	@echo "→ Generating database go code from SQL queries..."
