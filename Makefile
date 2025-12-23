@@ -54,8 +54,17 @@ sqlc-gen-code:
 	@go tool sqlc generate
 
 api-gen-code:
-	@echo "→ Generating server code from OpenAPI spec..."
-	@go tool oapi-codegen --config=oapi-codegen.yaml docs/openapi.yaml
+	@echo "→ Generating server code from OpenAPI specs..."
+	@for spec in docs/*.openapi.yaml; do \
+		name=$$(basename "$$spec" .openapi.yaml); \
+		echo "  - Generating from $$spec → internal/api/$$name/"; \
+		mkdir -p "internal/api/$$name"; \
+		go tool oapi-codegen \
+			-package "$$name" \
+			-generate chi-server,strict-server,models,embedded-spec \
+			-o "internal/api/$$name/openapi.gen.go" \
+			"$$spec"; \
+	done
 
 generate: sqlc-gen-code api-gen-code
 	@echo "→ Code generation complete."
