@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
 	"log/slog"
 	"net/http"
 	"os"
@@ -28,7 +27,7 @@ func main() {
 
 	err := godotenv.Load()
 	if err != nil {
-		log.Println("Error loading .env file")
+		slog.Warn("Error loading .env file", "error", err)
 	}
 
 	// Load configuration
@@ -36,10 +35,11 @@ func main() {
 
 	dbpool, err := connectToDatabase(cfg)
 	if err != nil {
-		log.Fatalf("An error occurred while connecting to the database: %s", err)
+		slog.Error("Failed to connect to database", "error", err)
+		os.Exit(1)
 	}
 	defer dbpool.Close()
-	fmt.Println("Successfully connected to database.")
+	slog.Info("Successfully connected to database")
 
 	queries := repository.New(dbpool)
 
@@ -47,14 +47,16 @@ func main() {
 	var jwtAuth *middleware.JWTAuth
 	if cfg.OIDCEnabled {
 		if cfg.OIDCIssuer == "" {
-			log.Fatal("OIDC_ISSUER must be set when OIDC_ENABLED is true")
+			slog.Error("OIDC_ISSUER must be set when OIDC_ENABLED is true")
+			os.Exit(1)
 		}
 		var err error
 		jwtAuth, err = middleware.NewJWTAuth(context.Background(), cfg.OIDCIssuer, cfg.OIDCAudience)
 		if err != nil {
-			log.Fatalf("Failed to initialize JWT auth: %s", err)
+			slog.Error("Failed to initialize JWT auth", "error", err)
+			os.Exit(1)
 		}
-		fmt.Printf("JWT authentication enabled (issuer: %s)\n", cfg.OIDCIssuer)
+		slog.Info("JWT authentication enabled", "issuer", cfg.OIDCIssuer)
 	}
 
 	router := routes.NewRouter(cfg, queries, jwtAuth)
@@ -81,10 +83,11 @@ func main() {
 		IdleTimeout:  60 * time.Second,
 	}
 
-	fmt.Printf("Running on %s (Debug: %v)\n", port, cfg.DebugMode)
+	slog.Info("Server starting", "port", cfg.Port, "debug", cfg.DebugMode)
 	err = server.ListenAndServe()
 	if err != nil && err != http.ErrServerClosed {
-		log.Fatalf("Error occurred while starting server: %s", err)
+		slog.Error("Server failed to start", "error", err)
+		os.Exit(1)
 	}
 }
 
