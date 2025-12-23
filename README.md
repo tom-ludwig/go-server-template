@@ -36,9 +36,12 @@ Tools which help designing an API (not sponsored or affiliated):
 ```
 .
 ├── docs/
-│   └── openapi.yaml          # OpenAPI specification
+│   ├── health.openapi.yaml   # Health check API spec
+│   └── users.openapi.yaml    # Users API spec
 ├── internal/
-│   ├── api/                  # Generated OpenAPI server code
+│   ├── api/
+│   │   ├── health/           # Generated health API code
+│   │   └── users/            # Generated users API code
 │   ├── config/               # Configuration management
 │   ├── handler/              # HTTP request handlers
 │   ├── middleware/           # HTTP middleware (logger, security headers)
@@ -98,55 +101,53 @@ Use sqlc to generate go boilerplate code: `sqlc generate`
 
 ## API Spec
 
-OpenAPI is used to define the API spec. The spec is located in `docs/openapi.yaml`.
-Generate the server boilerplate code using `oapi-codegen`:
+OpenAPI specs are stored in `docs/` with the naming convention `{name}.openapi.yaml`.
+Each spec generates its own package in `internal/api/{name}/`.
+
+Generate all API code:
 
 ```bash
 make api-gen-code
 ```
 
-which runs:
+This auto-discovers all `*.openapi.yaml` files in `docs/` and generates code for each.
 
-```bash
-go run github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen --config=oapi-codegen.yaml docs/openapi.yaml
-```
+### Adding a New API
 
-All handlers have to implemented by the `Server` struct in `internal/handler/handlers.go`.
-To split the handlers into multiple files, create new files in the same package and add either directly implement the methods or create new structs that will be embedded by the `Server` and implement the methods there.
+1. Create `docs/{name}.openapi.yaml`
+2. Run `make api-gen-code`
+3. Create a handler implementing `{name}.StrictServerInterface`
+4. Mount the API in `internal/routes/main_router.go` with desired middleware
 
-Example:
+Example handler:
 
 ```go
-type ClientHandler struct { }
-func (s *ClientHandler) GetClient(_ context.Context, _ api.GetClientRequestObject) (api.GetClientResponseObject, error) {
-	return api.GetClient200JSONResponse{
-		Name: "Client Name",
-	}, nil
-}
-
+// internal/handler/admin_handler.go
 type AdminHandler struct {
-    DB *dbpool.Pool
-}
-func (s *AdminHandler) GetAdmins(_ context.Context, _ api.GetAdminRequestObject) (api.GetAdminResponseObject, error) {
-    // use s.DB to query the database
-	return api.GetAdmin200JSONResponse{
-		Name: "Client Name",
-	}, nil
-}
-
-type Server struct {
-    ClientHandler
-    AdminHandler
+    Queries *repository.Queries
 }
 
 // compile-time check
-var _ api.StrictServerInterface = (*Server)(nil)
+var _ admin.StrictServerInterface = (*AdminHandler)(nil)
 
-func NewServer(db *dbpool.Pool) *Server {
-    return &Server{
-        ClientHandler: ClientHandler{},
-        AdminHandler: AdminHandler{DB: db},
-    }
+func (s *AdminHandler) GetDashboard(ctx context.Context, req admin.GetDashboardRequestObject) (admin.GetDashboardResponseObject, error) {
+    return admin.GetDashboard200JSONResponse{Status: "ok"}, nil
+}
+```
+
+Mount with middleware in router:
+
+```go
+func mountAdminAPI(r chi.Router, queries *repository.Queries) {
+    handler := handler.NewAdminHandler(queries)
+    server := admin.NewStrictHandler(handler, nil)
+    swagger, _ := admin.GetSwagger()
+
+    r.Group(func(r chi.Router) {
+        r.Use(middleware.AuthRequired)  // Add auth middleware
+        r.Use(oapimiddleware.OapiRequestValidator(swagger))
+        admin.HandlerFromMux(server, r)
+    })
 }
 ```
 
