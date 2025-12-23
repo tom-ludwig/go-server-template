@@ -6,21 +6,14 @@ import (
 	"sort"
 	"strings"
 
-	"com.tom-ludwig/go-server-template/internal/api"
 	"github.com/fatih/color"
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/go-chi/chi/v5"
 )
 
-// PrintRoutes prints all registered routes to stdout with colors and query parameters
-func PrintRoutes(r chi.Router) {
-	swagger, err := api.GetSwagger()
-	if err != nil {
-		// If we can't load swagger, fall back to simple listing
-		printRoutesSimple(r)
-		return
-	}
-
+// PrintRoutes prints all registered routes to stdout with colors and query parameters.
+// Pass swagger specs to enrich output with descriptions and query params.
+func PrintRoutes(r chi.Router, swaggers []*openapi3.T) {
 	fmt.Println()
 	color.New(color.FgCyan, color.Bold).Println("Registered Routes:")
 	fmt.Println(strings.Repeat("─", 100))
@@ -34,20 +27,22 @@ func PrintRoutes(r chi.Router) {
 
 	var routes []routeInfo
 
-	err = chi.Walk(r, func(method string, route string, handler http.Handler, middlewares ...func(http.Handler) http.Handler) error {
+	err := chi.Walk(r, func(method string, route string, handler http.Handler, middlewares ...func(http.Handler) http.Handler) error {
 		params := []string{}
 		description := ""
 
-		// Try to find this route in the OpenAPI spec
-		if swagger.Paths != nil {
+		// Try to find this route in any of the OpenAPI specs
+		for _, swagger := range swaggers {
+			if swagger == nil || swagger.Paths == nil {
+				continue
+			}
+
 			// Try exact match first
 			pathItem := swagger.Paths.Find(route)
 			if pathItem == nil {
 				// If exact match fails, try to find by matching pattern
-				// (chi routes might differ slightly from OpenAPI paths)
 				pathMap := swagger.Paths.Map()
 				for specPath, item := range pathMap {
-					// Simple matching: if route contains specPath or vice versa
 					if strings.Contains(route, specPath) || strings.Contains(specPath, route) {
 						pathItem = item
 						break
@@ -84,6 +79,7 @@ func PrintRoutes(r chi.Router) {
 							params = append(params, paramStr)
 						}
 					}
+					break // Found the route, no need to check other specs
 				}
 			}
 		}
@@ -142,23 +138,6 @@ func PrintRoutes(r chi.Router) {
 	}
 
 	fmt.Println(strings.Repeat("─", 100))
-	fmt.Println()
-}
-
-func printRoutesSimple(r chi.Router) {
-	fmt.Println("\nRegistered Routes:")
-	fmt.Println(strings.Repeat("-", 80))
-
-	err := chi.Walk(r, func(method string, route string, handler http.Handler, middlewares ...func(http.Handler) http.Handler) error {
-		fmt.Printf("%-8s %s\n", method, route)
-		return nil
-	})
-
-	if err != nil {
-		fmt.Printf("Error walking routes: %v\n", err)
-	}
-
-	fmt.Println(strings.Repeat("-", 80))
 	fmt.Println()
 }
 

@@ -9,10 +9,13 @@ import (
 	"os"
 	"time"
 
+	"com.tom-ludwig/go-server-template/internal/api/health"
+	"com.tom-ludwig/go-server-template/internal/api/users"
 	"com.tom-ludwig/go-server-template/internal/config"
 	"com.tom-ludwig/go-server-template/internal/repository"
 	"com.tom-ludwig/go-server-template/internal/routes"
 	"com.tom-ludwig/go-server-template/internal/utils"
+	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/joho/godotenv"
 )
@@ -43,7 +46,15 @@ func main() {
 
 	// Print registered routes in debug mode
 	if cfg.DebugMode {
-		utils.PrintRoutes(router)
+		// Add swagger specs here when you create new OpenAPI files
+		swaggers := []*openapi3.T{}
+		if s, err := health.GetSwagger(); err == nil {
+			swaggers = append(swaggers, s)
+		}
+		if s, err := users.GetSwagger(); err == nil {
+			swaggers = append(swaggers, s)
+		}
+		utils.PrintRoutes(router, swaggers)
 	}
 
 	port := fmt.Sprintf(":%s", cfg.Port)
