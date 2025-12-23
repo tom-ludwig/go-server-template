@@ -31,6 +31,11 @@ type Config struct {
 	CORSExposedHeaders   []string
 	CORSAllowCredentials bool
 	CORSMaxAge           int
+
+	// OIDC/JWT Auth
+	OIDCEnabled  bool
+	OIDCIssuer   string // https://your-keycloak.com/realms/your-realm
+	OIDCAudience string // Expected audience
 }
 
 func Load() *Config {
@@ -58,6 +63,11 @@ func Load() *Config {
 		CORSExposedHeaders:   getEnvSlice("CORS_EXPOSED_HEADERS", []string{"Link"}),
 		CORSAllowCredentials: getEnvBool("CORS_ALLOW_CREDENTIALS", true),
 		CORSMaxAge:           getEnvInt("CORS_MAX_AGE", 300),
+
+		// OIDC/JWT Auth
+		OIDCEnabled:  getEnvBool("OIDC_ENABLED", false),
+		OIDCIssuer:   getEnv("OIDC_ISSUER", ""),
+		OIDCAudience: getEnv("OIDC_AUDIENCE", ""),
 	}
 
 	// Validate configuration
