@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"log/slog"
 
 	"com.tom-ludwig/go-server-template/internal/api/users"
 	"com.tom-ludwig/go-server-template/internal/repository"
@@ -54,6 +55,10 @@ func (u *UserHandler) CreateUser(ctx context.Context, request users.CreateUserRe
 	})
 
 	if err != nil {
+		slog.Error(
+			"An error occured while trying to create a user",
+			"Error: ", err,
+		)
 		return users.CreateUser500JSONResponse{}, nil
 	}
 

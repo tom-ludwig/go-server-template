@@ -75,8 +75,8 @@ func mountUsersAPI(r chi.Router, queries *repository.Queries, jwtAuth *middlewar
 		// Add JWT authentication if enabled
 		if jwtAuth != nil {
 			r.Use(jwtAuth.Middleware)
-			r.Use(middleware.RequireScope("read:users"))
-			r.Use(middleware.RequireRole("roles", "admin"))
+			// r.Use(middleware.RequireScope("read:users"))
+			// r.Use(middleware.RequireRole("groups", "admin"))
 		}
 
 		r.Use(oapimiddleware.OapiRequestValidator(usersSwagger))

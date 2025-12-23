@@ -8,10 +8,11 @@ import (
 	"strings"
 	"time"
 
+	"slices"
+
 	"github.com/lestrrat-go/httprc/v3"
 	"github.com/lestrrat-go/jwx/v3/jwk"
 	"github.com/lestrrat-go/jwx/v3/jwt"
-	"slices"
 )
 
 // contextKey is a custom type for context keys to avoid collisions
@@ -126,7 +127,7 @@ func (j *JWTAuth) Middleware(next http.Handler) http.Handler {
 		// Parse and validate token
 		parseOpts := []jwt.ParseOption{
 			jwt.WithKeySet(keySet),
-			jwt.WithIssuer(j.issuer),
+			// jwt.WithIssuer(j.issuer), // TODO: Reanable; Problem: With SSO a oidc provider may issue to different apps, so <issuer>/o/app1 or <issuer>/o/app2. At this moment it is not clear how to solve this
 			jwt.WithRequiredClaim(jwt.ExpirationKey),
 		}
 
