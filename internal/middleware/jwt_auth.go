@@ -1,0 +1,246 @@
+package middleware
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"strings"
+	"time"
+
+	"github.com/lestrrat-go/httprc/v3"
+	"github.com/lestrrat-go/jwx/v3/jwk"
+	"github.com/lestrrat-go/jwx/v3/jwt"
+	"slices"
+)
+
+// contextKey is a custom type for context keys to avoid collisions
+type contextKey string
+
+const (
+	// ClaimsContextKey is the key used to store JWT claims in request context
+	ClaimsContextKey contextKey = "jwt_claims"
+	// SubjectContextKey is the key used to store the subject (user ID) in request context
+	SubjectContextKey contextKey = "jwt_subject"
+)
+
+// JWTAuth holds the JWT authentication middleware state
+type JWTAuth struct {
+	issuer   string
+	audience string
+	cache    *jwk.Cache
+	jwksURL  string
+}
+
+// NewJWTAuth creates a new JWT authentication middleware
+// issuer: the OIDC issuer URL
+// audience: the typically your client ID
+func NewJWTAuth(ctx context.Context, issuer, audience string) (*JWTAuth, error) {
+	if issuer == "" {
+		return nil, fmt.Errorf("issuer cannot be empty")
+	}
+
+	// Discover JWKS URL from .well-known endpoint
+	wellKnownURL := strings.TrimSuffix(issuer, "/") + "/.well-known/openid-configuration"
+	jwksURL, err := discoverJWKSURL(ctx, wellKnownURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to discover JWKS URL: %w", err)
+	}
+
+	// Create a cache that auto-refreshes the JWKS
+	cache, err := jwk.NewCache(ctx, httprc.NewClient())
+	if err != nil {
+		return nil, fmt.Errorf("failed to create JWKS cache: %w", err)
+	}
+
+	// Register the JWKS URL with auto-refresh
+	if err = cache.Register(ctx, jwksURL); err != nil {
+		return nil, fmt.Errorf("failed to register JWKS URL: %w", err)
+	}
+
+	return &JWTAuth{
+		issuer:   issuer,
+		audience: audience,
+		cache:    cache,
+		jwksURL:  jwksURL,
+	}, nil
+}
+
+// discoverJWKSURL fetches the OIDC discovery document and extracts the JWKS URL
+func discoverJWKSURL(ctx context.Context, wellKnownURL string) (string, error) {
+	client := &http.Client{Timeout: 10 * time.Second}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, wellKnownURL, nil)
+	if err != nil {
+		return "", err
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("failed to fetch discovery document: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("discovery endpoint returned status %d", resp.StatusCode)
+	}
+
+	var discovery struct {
+		JWKSURI string `json:"jwks_uri"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&discovery); err != nil {
+		return "", fmt.Errorf("failed to decode discovery document: %w", err)
+	}
+
+	if discovery.JWKSURI == "" {
+		return "", fmt.Errorf("jwks_uri not found in discovery document")
+	}
+
+	return discovery.JWKSURI, nil
+}
+
+// Middleware returns the HTTP middleware handler
+func (j *JWTAuth) Middleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		authHeader := r.Header.Get("Authorization")
+		if authHeader == "" {
+			http.Error(w, `{"error": "missing authorization header"}`, http.StatusUnauthorized)
+			return
+		}
+
+		// Extract bearer token
+		parts := strings.SplitN(authHeader, " ", 2)
+		if len(parts) != 2 || !strings.EqualFold(parts[0], "bearer") {
+			http.Error(w, `{"error": "invalid authorization header format"}`, http.StatusUnauthorized)
+			return
+		}
+		tokenString := parts[1]
+
+		// Get the cached JWKS
+		keySet, err := j.cache.Lookup(r.Context(), j.jwksURL)
+		if err != nil {
+			http.Error(w, fmt.Sprintf(`{"error": "failed to get JWKS: %s"}`, err.Error()), http.StatusInternalServerError)
+			return
+		}
+
+		// Parse and validate token
+		parseOpts := []jwt.ParseOption{
+			jwt.WithKeySet(keySet),
+			jwt.WithIssuer(j.issuer),
+			jwt.WithRequiredClaim(jwt.ExpirationKey),
+		}
+
+		// Add audience validation if configured
+		if j.audience != "" {
+			parseOpts = append(parseOpts, jwt.WithAudience(j.audience))
+		}
+
+		token, err := jwt.ParseString(tokenString, parseOpts...)
+		if err != nil {
+			http.Error(w, fmt.Sprintf(`{"error": "invalid token: %s"}`, err.Error()), http.StatusUnauthorized)
+			return
+		}
+
+		// Add token to context
+		ctx := context.WithValue(r.Context(), ClaimsContextKey, token)
+		if sub, ok := token.Subject(); ok {
+			ctx = context.WithValue(ctx, SubjectContextKey, sub)
+		}
+
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
+}
+
+// GetToken extracts the JWT token from the request context
+func GetToken(ctx context.Context) (jwt.Token, bool) {
+	token, ok := ctx.Value(ClaimsContextKey).(jwt.Token)
+	return token, ok
+}
+
+// GetSubject extracts the subject (user ID) from the request context
+func GetSubject(ctx context.Context) (string, bool) {
+	subject, ok := ctx.Value(SubjectContextKey).(string)
+	return subject, ok
+}
+
+// GetClaim extracts a specific claim from the token in context
+func GetClaim[T any](ctx context.Context, key string) (T, bool) {
+	var zero T
+	token, ok := GetToken(ctx)
+	if !ok {
+		return zero, false
+	}
+
+	var val T
+	if err := token.Get(key, &val); err != nil {
+		return zero, false
+	}
+
+	return val, true
+}
+
+// RequireScope returns a middleware that checks if the token has the required scope
+// Requires the JWT middleware to be used first
+func RequireScope(required string) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			token, ok := GetToken(r.Context())
+			if !ok {
+				http.Error(w, `{"error": "no token in context"}`, http.StatusUnauthorized)
+				return
+			}
+
+			var scopeStr string
+			if err := token.Get("scope", &scopeStr); err != nil {
+				http.Error(w, fmt.Sprintf(`{"error": "missing required scope: %s"}`, required), http.StatusForbidden)
+				return
+			}
+
+			scopes := strings.Fields(scopeStr)
+			for _, scope := range scopes {
+				if scope == required {
+					next.ServeHTTP(w, r)
+					return
+				}
+			}
+
+			http.Error(w, fmt.Sprintf(`{"error": "missing required scope: %s"}`, required), http.StatusForbidden)
+		})
+	}
+}
+
+// RequireRole returns a middleware that checks if the token has the required role
+// Requires the JWT middleware to be used first
+func RequireRole(claimName, required string) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			token, ok := GetToken(r.Context())
+			if !ok {
+				http.Error(w, `{"error": "no token in context"}`, http.StatusUnauthorized)
+				return
+			}
+
+			// Try as []interface{} first (common JSON array format)
+			var rolesInterface []interface{}
+			if err := token.Get(claimName, &rolesInterface); err == nil {
+				for _, role := range rolesInterface {
+					if roleStr, ok := role.(string); ok && roleStr == required {
+						next.ServeHTTP(w, r)
+						return
+					}
+				}
+			}
+
+			// Try as []string
+			var rolesString []string
+			if err := token.Get(claimName, &rolesString); err == nil {
+				if slices.Contains(rolesString, required) {
+					next.ServeHTTP(w, r)
+					return
+				}
+			}
+
+			http.Error(w, fmt.Sprintf(`{"error": "missing required role: %s"}`, required), http.StatusForbidden)
+		})
+	}
+}

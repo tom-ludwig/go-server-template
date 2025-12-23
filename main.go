@@ -12,6 +12,7 @@ import (
 	"com.tom-ludwig/go-server-template/internal/api/health"
 	"com.tom-ludwig/go-server-template/internal/api/users"
 	"com.tom-ludwig/go-server-template/internal/config"
+	"com.tom-ludwig/go-server-template/internal/middleware"
 	"com.tom-ludwig/go-server-template/internal/repository"
 	"com.tom-ludwig/go-server-template/internal/routes"
 	"com.tom-ludwig/go-server-template/internal/utils"
@@ -42,7 +43,21 @@ func main() {
 
 	queries := repository.New(dbpool)
 
-	router := routes.NewRouter(cfg, queries)
+	// Initialize JWT auth if OIDC is enabled
+	var jwtAuth *middleware.JWTAuth
+	if cfg.OIDCEnabled {
+		if cfg.OIDCIssuer == "" {
+			log.Fatal("OIDC_ISSUER must be set when OIDC_ENABLED is true")
+		}
+		var err error
+		jwtAuth, err = middleware.NewJWTAuth(context.Background(), cfg.OIDCIssuer, cfg.OIDCAudience)
+		if err != nil {
+			log.Fatalf("Failed to initialize JWT auth: %s", err)
+		}
+		fmt.Printf("JWT authentication enabled (issuer: %s)\n", cfg.OIDCIssuer)
+	}
+
+	router := routes.NewRouter(cfg, queries, jwtAuth)
 
 	// Print registered routes in debug mode
 	if cfg.DebugMode {

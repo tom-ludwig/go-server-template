@@ -13,7 +13,7 @@ import (
 	oapimiddleware "github.com/oapi-codegen/nethttp-middleware"
 )
 
-func NewRouter(cfg *config.Config, queries *repository.Queries) chi.Router {
+func NewRouter(cfg *config.Config, queries *repository.Queries, jwtAuth *middleware.JWTAuth) chi.Router {
 	r := chi.NewRouter()
 
 	// Core middleware (applied to all routes)
@@ -36,48 +36,48 @@ func NewRouter(cfg *config.Config, queries *repository.Queries) chi.Router {
 	}
 	r.Use(cors.Handler(corsOptions))
 
-	// Mount Health API (public - no auth required)
+	// Mount Health API (public)
 	mountHealthAPI(r, queries)
 
-	// Mount Users API (can add auth middleware here)
-	mountUsersAPI(r, queries)
+	// Mount Users API (protected with JWT auth if enabled)
+	mountUsersAPI(r, queries, jwtAuth)
 
 	return r
 }
 
-// mountHealthAPI mounts health check endpoints (public, no authentication)
+// mountHealthAPI mounts health check endpoints
 func mountHealthAPI(r chi.Router, queries *repository.Queries) {
 	healthHandler := handler.NewHealthHandler(queries)
 	strictHealthServer := health.NewStrictHandler(healthHandler, nil)
 
-	// OpenAPI request validation for health routes
 	healthSwagger, err := health.GetSwagger()
 	if err != nil {
 		panic("Failed to load health swagger spec")
 	}
 
 	r.Group(func(r chi.Router) {
-		// Public routes - no auth middleware
 		r.Use(oapimiddleware.OapiRequestValidator(healthSwagger))
 		health.HandlerFromMux(strictHealthServer, r)
 	})
 }
 
-// mountUsersAPI mounts user management endpoints (can be protected with auth)
-func mountUsersAPI(r chi.Router, queries *repository.Queries) {
+// mountUsersAPI mounts user management endpoints
+func mountUsersAPI(r chi.Router, queries *repository.Queries, jwtAuth *middleware.JWTAuth) {
 	userHandler := handler.NewUserHandler(queries)
 	strictUsersServer := users.NewStrictHandler(userHandler, nil)
 
-	// OpenAPI request validation for user routes
 	usersSwagger, err := users.GetSwagger()
 	if err != nil {
 		panic("Failed to load users swagger spec")
 	}
 
 	r.Group(func(r chi.Router) {
-		// Add authentication/authorization middleware here:
-		// r.Use(middleware.AuthRequired)
-		// r.Use(middleware.RequireRole("admin"))
+		// Add JWT authentication if enabled
+		if jwtAuth != nil {
+			r.Use(jwtAuth.Middleware)
+			r.Use(middleware.RequireScope("read:users"))
+			r.Use(middleware.RequireRole("roles", "admin"))
+		}
 
 		r.Use(oapimiddleware.OapiRequestValidator(usersSwagger))
 		users.HandlerFromMux(strictUsersServer, r)
