@@ -69,3 +69,102 @@ func (u *UserHandler) CreateUser(ctx context.Context, request users.CreateUserRe
 		Email:     newUser.Email.String,
 	}, nil
 }
+
+func (u *UserHandler) GetUsers(ctx context.Context, request users.GetUsersRequestObject) (users.GetUsersResponseObject, error) {
+	// Set default values for pagination parameters
+	page := int32(1)
+	if request.Params.Page != nil {
+		page = int32(*request.Params.Page)
+	}
+
+	limit := int32(20) // Default limit
+	if request.Params.Limit != nil {
+		limit = int32(*request.Params.Limit)
+	}
+
+	// Validate pagination parameters
+	if page < 1 || limit < 1 || limit > 100 {
+		return users.GetUsers400JSONResponse{
+			BadRequestJSONResponse: users.BadRequestJSONResponse{
+				Message: "Invalid pagination parameters: page must be >= 1, limit must be between 1 and 100",
+			},
+		}, nil
+	}
+
+	// Get total count of users
+	totalRecords, err := u.Queries.CountUsers(ctx)
+	if err != nil {
+		slog.Error(
+			"An error occurred while trying to count users",
+			"error", err,
+		)
+		return users.GetUsers500JSONResponse{
+			InternalServerErrorJSONResponse: users.InternalServerErrorJSONResponse{
+				Message: "An internal server error occurred",
+			},
+		}, nil
+	}
+
+	// Calculate pagination metadata
+	totalPages := int32((totalRecords + int64(limit) - 1) / int64(limit)) // Ceiling division
+	if totalPages == 0 {
+		totalPages = 1 // At least 1 page even if empty
+	}
+
+	var nextPage *int
+	if page < totalPages {
+		next := int(page + 1)
+		nextPage = &next
+	}
+
+	var prevPage *int
+	if page > 1 {
+		prev := int(page - 1)
+		prevPage = &prev
+	}
+
+	// Calculate offset
+	offset := (page - 1) * limit
+
+	// Fetch users with pagination
+	queryParameters := repository.GetUsersParams{
+		Limit:  limit,
+		Offset: offset,
+	}
+
+	dbUsers, err := u.Queries.GetUsers(ctx, queryParameters)
+	if err != nil {
+		slog.Error(
+			"An error occurred while trying to get users",
+			"error", err,
+		)
+		return users.GetUsers500JSONResponse{
+			InternalServerErrorJSONResponse: users.InternalServerErrorJSONResponse{
+				Message: "An internal server error occurred",
+			},
+		}, nil
+	}
+
+	// Convert database users to API users
+	var apiUsers []users.User
+	for _, dbUser := range dbUsers {
+		apiUsers = append(apiUsers, users.User{
+			UserId:    dbUser.UserID.String(),
+			FirstName: dbUser.FirstName,
+			LastName:  dbUser.LastName,
+			Email:     dbUser.Email.String,
+		})
+	}
+
+	return users.GetUsers200JSONResponse{
+		Data: apiUsers,
+		Pagination: users.PaginationMetadata{
+			CurrentPage:  int(page),
+			Limit:        int(limit),
+			NextPage:     nextPage,
+			PrevPage:     prevPage,
+			TotalPages:   int(totalPages),
+			TotalRecords: int(totalRecords),
+		},
+	}, nil
+}
