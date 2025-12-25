@@ -1,12 +1,16 @@
 package routes
 
 import (
+	"log/slog"
+	"os"
+
 	"com.tom-ludwig/go-server-template/internal/api/health"
 	"com.tom-ludwig/go-server-template/internal/api/users"
 	"com.tom-ludwig/go-server-template/internal/config"
 	"com.tom-ludwig/go-server-template/internal/handler"
 	"com.tom-ludwig/go-server-template/internal/middleware"
 	"com.tom-ludwig/go-server-template/internal/repository"
+	"github.com/getkin/kin-openapi/openapi3filter"
 	"github.com/go-chi/chi/v5"
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
@@ -52,7 +56,8 @@ func mountHealthAPI(r chi.Router, queries *repository.Queries) {
 
 	healthSwagger, err := health.GetSwagger()
 	if err != nil {
-		panic("Failed to load health swagger spec")
+		slog.Error("Failed to load health swagger spec", "error", err)
+		os.Exit(1)
 	}
 
 	r.Group(func(r chi.Router) {
@@ -68,10 +73,22 @@ func mountUsersAPI(r chi.Router, queries *repository.Queries, jwtAuth *middlewar
 
 	usersSwagger, err := users.GetSwagger()
 	if err != nil {
-		panic("Failed to load users swagger spec")
+		slog.Error("Failed to load users swagger spec", "error", err)
+		os.Exit(1)
 	}
 
 	r.Group(func(r chi.Router) {
+		// Configure request validator with JWT authentication function
+		var validatorOptions oapimiddleware.Options
+		if jwtAuth != nil {
+			validatorOptions = oapimiddleware.Options{
+				Options: openapi3filter.Options{
+					AuthenticationFunc: jwtAuth.OAPIMiddleware(jwtAuth),
+				},
+			}
+		}
+		r.Use(oapimiddleware.OapiRequestValidatorWithOptions(usersSwagger, &validatorOptions))
+
 		// Add JWT authentication if enabled
 		if jwtAuth != nil {
 			r.Use(jwtAuth.Middleware)
@@ -79,7 +96,6 @@ func mountUsersAPI(r chi.Router, queries *repository.Queries, jwtAuth *middlewar
 			// r.Use(middleware.RequireRole("groups", "admin"))
 		}
 
-		r.Use(oapimiddleware.OapiRequestValidator(usersSwagger))
 		users.HandlerFromMux(strictUsersServer, r)
 	})
 }
