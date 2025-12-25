@@ -21,6 +21,20 @@ import (
 	strictnethttp "github.com/oapi-codegen/runtime/strictmiddleware/nethttp"
 )
 
+const (
+	JWT_AuthScopes = "JWT_Auth.Scopes"
+)
+
+// PaginationMetadata defines model for PaginationMetadata.
+type PaginationMetadata struct {
+	CurrentPage  int  `json:"current_page"`
+	Limit        int  `json:"limit"`
+	NextPage     *int `json:"next_page,omitempty"`
+	PrevPage     *int `json:"prev_page,omitempty"`
+	TotalPages   int  `json:"total_pages"`
+	TotalRecords int  `json:"total_records"`
+}
+
 // User defines model for User.
 type User struct {
 	Email     string `json:"email"`
@@ -36,28 +50,42 @@ type UserCreate struct {
 	LastName  string `json:"last_name"`
 }
 
-// BadRequest defines model for BadRequest.
+// UserListResponse defines model for UserListResponse.
+type UserListResponse struct {
+	Data       []User             `json:"data"`
+	Pagination PaginationMetadata `json:"pagination"`
+}
+
+// BadRequest defines model for Bad Request.
 type BadRequest struct {
-	Errors *[]struct {
-		Message string `json:"message"`
-	} `json:"errors,omitempty"`
 	Message string `json:"message"`
 }
 
-// InternalServerError defines model for InternalServerError.
+// Forbidden defines model for Forbidden.
+type Forbidden struct {
+	Message string `json:"message"`
+}
+
+// InternalServerError defines model for Internal Server Error.
 type InternalServerError struct {
 	Message string `json:"message"`
 }
 
-// NotFound defines model for NotFound.
-type NotFound struct {
+// Unauthorized defines model for Unauthorized.
+type Unauthorized struct {
 	Message string `json:"message"`
 }
 
 // GetUserParams defines parameters for GetUser.
 type GetUserParams struct {
-	// UserId The user ID to fetch
 	UserId string `form:"user_id" json:"user_id"`
+}
+
+// GetUsersParams defines parameters for GetUsers.
+type GetUsersParams struct {
+	Page   *int    `form:"page,omitempty" json:"page,omitempty"`
+	Limit  *int    `form:"limit,omitempty" json:"limit,omitempty"`
+	Accept *string `json:"Accept,omitempty"`
 }
 
 // CreateUserJSONRequestBody defines body for CreateUser for application/json ContentType.
@@ -71,6 +99,9 @@ type ServerInterface interface {
 	// Create user
 	// (POST /user)
 	CreateUser(w http.ResponseWriter, r *http.Request)
+	// Get users
+	// (GET /users)
+	GetUsers(w http.ResponseWriter, r *http.Request, params GetUsersParams)
 }
 
 // Unimplemented server implementation that returns http.StatusNotImplemented for each endpoint.
@@ -86,6 +117,12 @@ func (_ Unimplemented) GetUser(w http.ResponseWriter, r *http.Request, params Ge
 // Create user
 // (POST /user)
 func (_ Unimplemented) CreateUser(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Get users
+// (GET /users)
+func (_ Unimplemented) GetUsers(w http.ResponseWriter, r *http.Request, params GetUsersParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -137,6 +174,68 @@ func (siw *ServerInterfaceWrapper) CreateUser(w http.ResponseWriter, r *http.Req
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.CreateUser(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetUsers operation middleware
+func (siw *ServerInterfaceWrapper) GetUsers(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, JWT_AuthScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetUsersParams
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "page", r.URL.Query(), &params.Page)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "page", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "limit", r.URL.Query(), &params.Limit)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		return
+	}
+
+	headers := r.Header
+
+	// ------------- Optional header parameter "Accept" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("Accept")]; found {
+		var Accept string
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "Accept", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "Accept", valueList[0], &Accept, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "Accept", Err: err})
+			return
+		}
+
+		params.Accept = &Accept
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetUsers(w, r, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -265,14 +364,18 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/user", wrapper.CreateUser)
 	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/users", wrapper.GetUsers)
+	})
 
 	return r
 }
 
 type BadRequestJSONResponse struct {
-	Errors *[]struct {
-		Message string `json:"message"`
-	} `json:"errors,omitempty"`
+	Message string `json:"message"`
+}
+
+type ForbiddenJSONResponse struct {
 	Message string `json:"message"`
 }
 
@@ -280,7 +383,7 @@ type InternalServerErrorJSONResponse struct {
 	Message string `json:"message"`
 }
 
-type NotFoundJSONResponse struct {
+type UnauthorizedJSONResponse struct {
 	Message string `json:"message"`
 }
 
@@ -301,7 +404,12 @@ func (response GetUser200JSONResponse) VisitGetUserResponse(w http.ResponseWrite
 	return json.NewEncoder(w).Encode(response)
 }
 
-type GetUser400JSONResponse struct{ BadRequestJSONResponse }
+type GetUser400JSONResponse struct {
+	Errors *[]struct {
+		Message string `json:"message"`
+	} `json:"errors,omitempty"`
+	Message string `json:"message"`
+}
 
 func (response GetUser400JSONResponse) VisitGetUserResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
@@ -310,7 +418,9 @@ func (response GetUser400JSONResponse) VisitGetUserResponse(w http.ResponseWrite
 	return json.NewEncoder(w).Encode(response)
 }
 
-type GetUser404JSONResponse struct{ NotFoundJSONResponse }
+type GetUser404JSONResponse struct {
+	Message string `json:"message"`
+}
 
 func (response GetUser404JSONResponse) VisitGetUserResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
@@ -336,7 +446,12 @@ func (response CreateUser201JSONResponse) VisitCreateUserResponse(w http.Respons
 	return json.NewEncoder(w).Encode(response)
 }
 
-type CreateUser400JSONResponse struct{ BadRequestJSONResponse }
+type CreateUser400JSONResponse struct {
+	Errors *[]struct {
+		Message string `json:"message"`
+	} `json:"errors,omitempty"`
+	Message string `json:"message"`
+}
 
 func (response CreateUser400JSONResponse) VisitCreateUserResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
@@ -346,10 +461,65 @@ func (response CreateUser400JSONResponse) VisitCreateUserResponse(w http.Respons
 }
 
 type CreateUser500JSONResponse struct {
-	InternalServerErrorJSONResponse
+	Message string `json:"message"`
 }
 
 func (response CreateUser500JSONResponse) VisitCreateUserResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetUsersRequestObject struct {
+	Params GetUsersParams
+}
+
+type GetUsersResponseObject interface {
+	VisitGetUsersResponse(w http.ResponseWriter) error
+}
+
+type GetUsers200JSONResponse UserListResponse
+
+func (response GetUsers200JSONResponse) VisitGetUsersResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetUsers400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response GetUsers400JSONResponse) VisitGetUsersResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetUsers401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response GetUsers401JSONResponse) VisitGetUsersResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetUsers403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response GetUsers403JSONResponse) VisitGetUsersResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetUsers500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response GetUsers500JSONResponse) VisitGetUsersResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(500)
 
@@ -364,6 +534,9 @@ type StrictServerInterface interface {
 	// Create user
 	// (POST /user)
 	CreateUser(ctx context.Context, request CreateUserRequestObject) (CreateUserResponseObject, error)
+	// Get users
+	// (GET /users)
+	GetUsers(ctx context.Context, request GetUsersRequestObject) (GetUsersResponseObject, error)
 }
 
 type StrictHandlerFunc = strictnethttp.StrictHTTPHandlerFunc
@@ -452,22 +625,53 @@ func (sh *strictHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// GetUsers operation middleware
+func (sh *strictHandler) GetUsers(w http.ResponseWriter, r *http.Request, params GetUsersParams) {
+	var request GetUsersRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetUsers(ctx, request.(GetUsersRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetUsers")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetUsersResponseObject); ok {
+		if err := validResponse.VisitGetUsersResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"H4sIAAAAAAAC/8xVTY8cRQz9K1bBsTWzgXCZGyGA9oIQH6doFVWq3DMVdbt6bdcmrdX8d+Tqnsl0tskS",
-	"CJBbfdguv2c/170LuR8yIam43b1jlCGTYN088/EXvC0oaruQSZHq0g9Dl4LXlGn7WjLZmYQD9t5WA+cB",
-	"WdMUBJkz11VS7OWhQY8ifo+21HFAt3OinGjvjsfGMd6WxBjd7sXZ8KY5GeZXrzGoO54PPLMfbf8Jgppl",
-	"RAmcBgPqdu63A4Ig3yFDyKWLQFmhUEQW9RRBDwg8EQaxIGiGRHe+SxFkJPVvN2AhQpeQFORQY/Q5pnZc",
-	"+NZYPILf+0Qbg3NNiky++7W+/r1R+g9K8m+TgxRysYwxgicohG8HDIoRQqaYzAH04BUGxjsku0gKLece",
-	"2tK1qesS7S8ZqRz8lPWHXCh+jsDnPDECo+TCAeGNl9ofreW8qS9MadVMfhfkFa30PnUr2TWuTSz6knyP",
-	"q9ed/9BtEeSXKT4O+2S4eO8yejOnuCZBg/Qdo9eaxJKj5149KHuSFhkmH2gzQzAHq7YHwjdgMTau+S9o",
-	"eQ/6RwO2AIna/BCsgYDek99jb0JHikNOpGLINGmHs5HAtz9fu8bdIcvk+mRztbmyzPOA5Ifkdu7retS4",
-	"weuhsrEtc+/ssQrAmKrtfx3dzv2IWnvLHNj3qGjD98X9StNaHLh+bmOqRQ0HZ4Dczt0W5NE1biLuoine",
-	"8aVcsLmQ2fvc3jTLn+Srq6uPku2XjK3buS+2736n7ayebYX3YR1W8UkJAUXa0jVwms7zgDp4AUYtTLiY",
-	"2pf6TTTfTDDgVY5jnUNPJyxrKZ4xby++zury9HGX83yro6L0vedxKmitlPWO38tJpuJujo0bsqz0wKTC",
-	"uQ1maM9yHD9pCWapH5dCssY4Pij+k/+9+NN4WQznOnow/t2afvNXXNb+7WV5Jxr/rMJmO589NmXOLSBL",
-	"6Yo73hz/CAAA//9N/JRZ5wkAAA==",
+	"H4sIAAAAAAAC/+xYT3PbthP9Khj8fkdakhv3opvTJh132k7GcaYHj8YDE0sRGRKgdxeOWA+/ewcA9YcS",
+	"LSXTJPWhN4rAPuw+7Ntd6knmrm6cBcsk508SgRpnCeKP10qLa3jwQBx+5s4y2PiomqYyuWLj7PQjORve",
+	"UV5CrcJTg64BZJNQaiBSSwiP3DYg55IYjV3KrsskwoM3CFrObzcbF9l6o7v/CDnLLuzUQDmaJhwp51J2",
+	"mXzr8N5oDfYlOndlGdCqSrwHfAQUbxAdvkRHP1jluXRo/gr2L82/LutPjIe8U0tjoz+/AyuteMSR3COC",
+	"5btm6I2xDEvAEHFlasPjSxZWxywbhMcjy+xYVXGdjm1AyB3q0S17XA33Z8PYhuetwzqkNZMfCPCQKKiV",
+	"qUbuK5OFQeI7q2oYXa7UsVVPgHdGn06ELczgxC1C1rv4XEg/ISiOTgyz5mfFSjAqSwWgSDaicCjyYGDs",
+	"Uihh4ZMIGBOZfQ9aPjf0ZwLO5OqsMFpXcKbZnRlbuHDIvSJ4H9XxRzw2XXTX0/ObIb7uy/nh7a/FYxjq",
+	"+OL/CIWcy/9Ntw1h2ktvmnA3XilE1UY9bPR4CmFEufuk7IBlyb2REpFJgtyj4TYGnmL59c8bcem5jJyA",
+	"QsC3DmvFch6WZF9CAk5alRvckrlJhWfN6TCVbkoQb1aqbioQl++uBDWQU8yluhVLJygVd4a6qRRDyCY2",
+	"XAXoX9y69N/0qzKTj4CUkM8ns8kscOgasKoxci5fTWaT85CPissY19T3wl1CrFfh/iJBVzocABzvJRig",
+	"qoEBSc5vn6QJ+A8esJWZTAm5o6kt5Ywesp2Cvp+zi2w4Dvwwm31RgzidUYcVPxCOaeQQnxQJ8nkORIWv",
+	"MqGsFlzCmvRSkUBgjxbS+94OtEAg5zEHYWy/ksIQ9063k8D6xRfGslcjQjOngXy+ejc8VNs3abEXs5nY",
+	"nfMiNxcvbRC4mF0I60IV91YPyoCc3y4ySb6uFbZJFcInWbBaBkHE3Ce5CPXK0YiQUh/ptdQn0Wun26+a",
+	"7H2z6oYsBAl2BzI7/9dllhrkRkZhS2yeoP9Tzz6PfTnKna90TFJvNSDxulytedYeBDth7KOqjBbUWlar",
+	"iQgQeWXAsqAyYtROm6Id2EYsbIVaKmPjFfz4j67gW5MBNnc+fAGBFsoKb2HVQB5Kc+6sNsFAcKlYhIka",
+	"bFgwLAp0tSh8VZiqCmPaDgMTcQ2NQ47vDFHiMnYD36QFULUwRcBpQpclpsnRSpEU+Vyx6LLUfulU/6XP",
+	"a8D9yH7QbXdG/3HDNNafsoQ0pISE30+DLMGWoHSMtMe9zHNoRoG/2wAwmFCf+TztS80Y1Ma36UEDOz9t",
+	"M/jujUavThtt/3LYSvC4xfj/AHt5uTvC3i660YZGY0nabd497U56JLtF93cAAAD//2SP4CLbEQAA",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file
