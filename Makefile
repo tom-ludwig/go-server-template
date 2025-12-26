@@ -1,5 +1,5 @@
-# Load .env file if it exists (using shell to source it)
-include .env
+# Load .env file if it exists (optional, won't fail if missing)
+-include .env
 export
 
 MIGRATIONS_DIR = migrations
