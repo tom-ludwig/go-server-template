@@ -11,9 +11,6 @@ version: "2"
 run:
   timeout: 5m
   tests: true
-  skip-dirs:
-    - internal/api  # Generated code
-    - internal/repository  # Generated code
 
 formatters:
   enable:
@@ -46,6 +43,18 @@ formatters:
 
 linters:
   exclusions:
+    # Exclude generated code directories
+    paths:
+      - internal/api
+      - internal/repository
+
+    # Exclude rules for specific files/linters
+    rules:
+      # Exclude errcheck from test files
+      - path: _test\.go
+        linters:
+          - errcheck
+
     # these presets where present in the v1 version of golangci-lint
     # it's interesting to keep them when migrating, but removing them should be the goal
     presets:
@@ -217,20 +226,6 @@ linters:
       extra-words: []
       #  - typo: "whattever"
       #    correction: "whatever"
-
-issues:
-  exclude-rules:
-    # Exclude errcheck from test files
-    - path: _test\.go
-      linters:
-        - errcheck
-    # Exclude all linters from generated code directories
-    - path: internal/api
-      text: ".*"
-    - path: internal/repository
-      text: ".*"
-  max-issues-per-linter: 0
-  max-same-issues: 0
 
 output:
   # Order to use when sorting results.
