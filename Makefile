@@ -72,5 +72,13 @@ generate: sqlc-gen-code api-gen-code
 build-swagger-docs:
 	$(CONTAINER_CMD) run -p 8000:8080 -e SWAGGER_JSON=/docs/openapi.yaml -v $(shell pwd)/docs:/docs swaggerapi/swagger-ui
 
-.PHONY: new up down start-dev-db psql api-gen-code sqlc-gen-code build-swagger-docs generate download install-tools
+lint:
+	@echo "→ Running golangci-lint..."
+	@golangci-lint run
+
+lint-fix:
+	@echo "→ Running golangci-lint with auto-fix..."
+	@golangci-lint run --fix
+
+.PHONY: new up down start-dev-db psql api-gen-code sqlc-gen-code build-swagger-docs generate download install-tools lint lint-fix
 
