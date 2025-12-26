@@ -115,9 +115,36 @@ jobs:
             exit 1
           fi
 
+  # Check if code generation related files changed
+  changes:
+    name: Detect Changes
+    runs-on: ubuntu-latest
+    outputs:
+      codegen: ${{ steps.filter.outputs.codegen }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check for codegen-related changes
+        uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            codegen:
+              - 'docs/**/*.openapi.yaml'
+              - 'query/**/*.sql'
+              - 'sqlc.yaml'
+              - 'oapi-codegen.yaml'
+              - 'internal/api/**'
+              - 'internal/repository/**'
+              - 'go.mod'
+              - 'go.sum'
+
   generate:
     name: Code Generation Check
     runs-on: ubuntu-latest
+    needs: changes
+    if: ${{ needs.changes.outputs.codegen == 'true' }}
 
     steps:
       - name: Checkout code
