@@ -30,6 +30,10 @@ Tools which help designing an API (not sponsored or affiliated):
 - **Colored Logging:** Colored request logs in debug mode
 - **Route Listing:** Automatic route listing on startup (debug mode)
 - **Environment Configuration:** Configuration via .env file
+- **Makefile:** Simplified build and development commands
+- **Docker Support:** Dockerfile and docker-compose for easy setup
+- **GolangCI-Lint:** Pre-configured linter for code quality
+- **Github Actions:** CI setup for linting and testing
 
 ## Directory Structure
 
@@ -71,6 +75,9 @@ This template follows a code-generation-first approach:
 5. **SQL-First:** SQL is written raw and boilerplate code is generated via `sqlc`. This provides type-safe database access while keeping full control over SQL queries.
 
 # Requirements
+
+Install both with go tools: `make install-tools`
+or via homebrew:
 
 - sqlc: `brew install sqlc`
 - golang-migrate: `brew install golang-migrate`
@@ -153,7 +160,7 @@ func mountAdminAPI(r chi.Router, queries *repository.Queries) {
 
 ## Get Started
 
-- Install the Requirements
+- Install the Requirements: `make install-tools`
 - Copy the example `.env.example` file and adjust to your use case: `cp .env.example .env`
 - Prepare local development (start postgres): `make start-dev-db`
 - Run migrations: `make up`
