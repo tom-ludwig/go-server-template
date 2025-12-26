@@ -1,0 +1,40 @@
+name: Renovate
+
+on:
+  # Run weekly on Sunday at 00:00 UTC
+  schedule:
+    - cron: "0 0 * * SUN" 
+  # Allow manual trigger
+  workflow_dispatch:
+
+jobs:
+  renovate:
+    name: Renovate
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6.0.1
+
+      # Don't waste time starting Renovate if JSON is invalid
+      - name: Validate Renovate JSON
+        run: jq type renovate.json
+
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v2.2.1
+        with:
+          app-id: ${{ secrets.RENOVATE_APP_ID }}
+          private-key: ${{ secrets.RENOVATE_APP_PRIVATE_KEY }}
+
+      - name: Run Renovate
+        uses: renovatebot/github-action@v44.0.5
+        env:
+          RENOVATE_REPOSITORIES: ${{ github.repository }}
+          # Onboarding not needed for self hosted
+          RENOVATE_ONBOARDING: "false"
+          # Use GitHub API to create commits (this allows for signed commits from GitHub App)
+          RENOVATE_PLATFORM_COMMIT: "true"
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+          configurationFile: renovate.json

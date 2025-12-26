@@ -16,6 +16,7 @@ Tools which help designing an API (not sponsored or affiliated):
 - [Migrations](#migrations)
 - [DB Schema](#db-schema)
 - [API Spec](#api-spec)
+- [Renovate](#renovate)
 - [Get Started](#get-started)
 
 ## Features
@@ -34,6 +35,7 @@ Tools which help designing an API (not sponsored or affiliated):
 - **Docker Support:** Dockerfile and docker-compose for easy setup
 - **GolangCI-Lint:** Pre-configured linter for code quality
 - **Github Actions:** CI setup for linting and testing
+- **Renovate:** Automated dependency updates (requires GitHub App setup)
 
 ## Directory Structure
 
@@ -157,6 +159,14 @@ func mountAdminAPI(r chi.Router, queries *repository.Queries) {
     })
 }
 ```
+
+## Renovate
+
+Automated dependency updates via [Renovate](https://docs.renovatebot.com/). Requires a GitHub App:
+
+1. Create a GitHub App with permissions: `contents: write`, `pull_requests: write`, `issues: write`
+2. Install the app on your repository
+3. Add secrets: `RENOVATE_APP_ID` and `RENOVATE_APP_PRIVATE_KEY`
 
 ## Get Started
 
