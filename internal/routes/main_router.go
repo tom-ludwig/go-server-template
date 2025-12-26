@@ -4,17 +4,18 @@ import (
 	"log/slog"
 	"os"
 
+	"github.com/getkin/kin-openapi/openapi3filter"
+	"github.com/go-chi/chi/v5"
+	chimiddleware "github.com/go-chi/chi/v5/middleware"
+	"github.com/go-chi/cors"
+	oapimiddleware "github.com/oapi-codegen/nethttp-middleware"
+
 	"com.tom-ludwig/go-server-template/internal/api/health"
 	"com.tom-ludwig/go-server-template/internal/api/users"
 	"com.tom-ludwig/go-server-template/internal/config"
 	"com.tom-ludwig/go-server-template/internal/handler"
 	"com.tom-ludwig/go-server-template/internal/middleware"
 	"com.tom-ludwig/go-server-template/internal/repository"
-	"github.com/getkin/kin-openapi/openapi3filter"
-	"github.com/go-chi/chi/v5"
-	chimiddleware "github.com/go-chi/chi/v5/middleware"
-	"github.com/go-chi/cors"
-	oapimiddleware "github.com/oapi-codegen/nethttp-middleware"
 )
 
 func NewRouter(cfg *config.Config, queries *repository.Queries, jwtAuth *middleware.JWTAuth) chi.Router {

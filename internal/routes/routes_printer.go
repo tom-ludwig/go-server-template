@@ -1,4 +1,4 @@
-package utils
+package routes
 
 import (
 	"fmt"
@@ -27,7 +27,7 @@ func PrintRoutes(r chi.Router, swaggers []*openapi3.T) {
 
 	var routes []routeInfo
 
-	err := chi.Walk(r, func(method string, route string, handler http.Handler, middlewares ...func(http.Handler) http.Handler) error {
+	err := chi.Walk(r, func(method string, route string, _ http.Handler, _ ...func(http.Handler) http.Handler) error {
 		params := []string{}
 		description := ""
 

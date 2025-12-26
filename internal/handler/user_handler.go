@@ -6,10 +6,11 @@ import (
 	"errors"
 	"log/slog"
 
-	"com.tom-ludwig/go-server-template/internal/api/users"
-	"com.tom-ludwig/go-server-template/internal/repository"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
+
+	"com.tom-ludwig/go-server-template/internal/api/users"
+	"com.tom-ludwig/go-server-template/internal/repository"
 )
 
 // compile-time check
@@ -56,7 +57,7 @@ func (u *UserHandler) CreateUser(ctx context.Context, request users.CreateUserRe
 
 	if err != nil {
 		slog.Error(
-			"An error occured while trying to create a user",
+			"An error occurred while trying to create a user",
 			"Error: ", err,
 		)
 		return users.CreateUser500JSONResponse{}, nil

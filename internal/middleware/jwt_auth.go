@@ -7,10 +7,9 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
-
-	"slices"
 
 	"github.com/getkin/kin-openapi/openapi3filter"
 	"github.com/lestrrat-go/httprc/v3"
@@ -160,8 +159,8 @@ func (j *JWTAuth) Middleware(next http.Handler) http.Handler {
 // The biggest downside to this approch is that you cannot easily chain additional middlewares like RequireScope or RequireRole after this one
 // So instead of using this for complete JWT authentication it just checks if the token is present.
 // This just ensures oapi doesn't reject the request but we can still use the other validations from the package.
-func (j *JWTAuth) OAPIMiddleware(jwtAuth *JWTAuth) openapi3filter.AuthenticationFunc {
-	return func(ctx context.Context, input *openapi3filter.AuthenticationInput) error {
+func (j *JWTAuth) OAPIMiddleware(_ *JWTAuth) openapi3filter.AuthenticationFunc {
+	return func(_ context.Context, input *openapi3filter.AuthenticationInput) error {
 		// Extract Authorization header
 		authHeader := input.RequestValidationInput.Request.Header.Get("Authorization")
 		if authHeader == "" {
@@ -217,11 +216,9 @@ func RequireScope(required string) func(http.Handler) http.Handler {
 			}
 
 			scopes := strings.Fields(scopeStr)
-			for _, scope := range scopes {
-				if scope == required {
-					next.ServeHTTP(w, r)
-					return
-				}
+			if slices.Contains(scopes, required) {
+				next.ServeHTTP(w, r)
+				return
 			}
 
 			http.Error(w, fmt.Sprintf(`{"error": "missing required scope: %s"}`, required), http.StatusForbidden)
@@ -241,7 +238,7 @@ func RequireRole(claimName, required string) func(http.Handler) http.Handler {
 			}
 
 			// Try as []interface{} first (common JSON array format)
-			var rolesInterface []interface{}
+			var rolesInterface []any
 			if err := token.Get(claimName, &rolesInterface); err == nil {
 				for _, role := range rolesInterface {
 					if roleStr, ok := role.(string); ok && roleStr == required {

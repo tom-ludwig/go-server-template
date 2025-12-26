@@ -20,21 +20,21 @@ func NewHealthHandler(queries *repository.Queries) *HealthHandler {
 	}
 }
 
-func (s *HealthHandler) GetHealthz(ctx context.Context, request health.GetHealthzRequestObject) (health.GetHealthzResponseObject, error) {
+func (s *HealthHandler) GetHealthz(_ context.Context, _ health.GetHealthzRequestObject) (health.GetHealthzResponseObject, error) {
 	return health.GetHealthz200JSONResponse{
 		Status: "OK",
 	}, nil
 }
 
 // GetLivez implements health.StrictServerInterface.
-func (s *HealthHandler) GetLivez(ctx context.Context, request health.GetLivezRequestObject) (health.GetLivezResponseObject, error) {
+func (s *HealthHandler) GetLivez(_ context.Context, _ health.GetLivezRequestObject) (health.GetLivezResponseObject, error) {
 	return health.GetLivez200JSONResponse{
 		Status: "OK",
 	}, nil
 }
 
 // GetReadyz implements health.StrictServerInterface.
-func (s *HealthHandler) GetReadyz(ctx context.Context, request health.GetReadyzRequestObject) (health.GetReadyzResponseObject, error) {
+func (s *HealthHandler) GetReadyz(ctx context.Context, _ health.GetReadyzRequestObject) (health.GetReadyzResponseObject, error) {
 	_, err := s.queries.Ping(ctx)
 	if err != nil {
 		return health.GetReadyz503JSONResponse{
