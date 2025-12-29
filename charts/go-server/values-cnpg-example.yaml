@@ -56,11 +56,11 @@ env:
 
   # OIDC (example with Keycloak)
   OIDC_ENABLED:
-    value: "true"
+    value: "false"
   OIDC_ISSUER:
-    value: "https://keycloak.example.com/realms/my-realm"
+    value: ""
   OIDC_AUDIENCE:
-    value: "my-app"
+    value: ""
 
 # TLS certificates for mTLS connection to PostgreSQL
 pgTLS:
