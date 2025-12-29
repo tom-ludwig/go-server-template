@@ -70,7 +70,7 @@ generate: sqlc-gen-code api-gen-code
 	@echo "→ Code generation complete."
 
 build-swagger-docs:
-	$(CONTAINER_CMD) run -p 8000:8080 -e SWAGGER_JSON=/docs/openapi.yaml -v $(shell pwd)/docs:/docs swaggerapi/swagger-ui
+	$(CONTAINER_CMD) run -p 8000:8080 -e SWAGGER_JSON=/docs/health.openapi.yaml -v $(shell pwd)/docs:/docs swaggerapi/swagger-ui
 
 lint:
 	@echo "→ Running golangci-lint..."
