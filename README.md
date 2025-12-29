@@ -18,6 +18,7 @@ Tools which help designing an API (not sponsored or affiliated):
 - [API Spec](#api-spec)
 - [Renovate](#renovate)
 - [Get Started](#get-started)
+- [Deployment](#deployment)
 
 ## Features
 
@@ -183,3 +184,27 @@ Automated dependency updates via [Renovate](https://docs.renovatebot.com/). Requ
 curl -X POST "http://localhost:8080/user" -H "Content-Type: application/json" -d '{"first_name": "John", "last_name": "Doe", "email": "john.doe@example.com"}'
 curl "http://localhost:8080/user?user_id=<uuid>"
 ```
+
+## Deployment
+
+### Docker
+
+```bash
+docker build -t my-app .
+```
+
+Image is pushed to GitHub Container Registry via GitHub Actions on:
+- Push to `main` → `latest` tag
+- Git tags `v*.*.*` -> version tags
+
+### Helm
+
+```bash
+helm install my-app ./charts/go-server -f my-values.yaml
+```
+
+**Key features:**
+- Migrations run as pre-hook (blocks deployment if they fail)
+- SQL files auto-read from `migrations/` via symlink
+- direct values or `secretKeyRef` for CNPG secrets
+- TLS cert mounting for PostgreSQL mTLS

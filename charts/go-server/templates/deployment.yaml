@@ -1,0 +1,102 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "go-server.fullname" . }}
+  labels:
+    {{- include "go-server.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "go-server.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "go-server.labels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: {{ .Chart.Name }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: {{ include "go-server.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ (index .Values.env "PORT").value | default "8080" | int }}
+              protocol: TCP
+          env:
+            {{- include "go-server.envVars" . | nindent 12 }}
+            {{- if .Values.pgTLS.enabled }}
+            - name: PG_CLIENT_CERT
+              value: {{ .Values.pgTLS.mountPath }}/tls.crt
+            - name: PG_CLIENT_KEY
+              value: {{ .Values.pgTLS.mountPath }}/tls.key
+            - name: PG_SSLROOTCERT
+              value: {{ .Values.pgTLS.mountPath }}/ca.crt
+            {{- end }}
+          {{- with .Values.livenessProbe }}
+          livenessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.readinessProbe }}
+          readinessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          {{- if .Values.pgTLS.enabled }}
+          volumeMounts:
+            - name: pg-client-certs
+              mountPath: {{ .Values.pgTLS.mountPath }}
+              readOnly: true
+          {{- end }}
+      {{- if .Values.pgTLS.enabled }}
+      volumes:
+        - name: pg-client-certs
+          projected:
+            sources:
+              {{- if .Values.pgTLS.clientSecret }}
+              - secret:
+                  name: {{ .Values.pgTLS.clientSecret }}
+                  items:
+                    - key: tls.crt
+                      path: tls.crt
+                    - key: tls.key
+                      path: tls.key
+              {{- end }}
+              {{- if .Values.pgTLS.caSecret }}
+              - secret:
+                  name: {{ .Values.pgTLS.caSecret }}
+                  items:
+                    - key: ca.crt
+                      path: ca.crt
+              {{- end }}
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+

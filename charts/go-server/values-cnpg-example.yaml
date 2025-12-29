@@ -1,0 +1,78 @@
+# Example values for use with CloudNativePG (CNPG)
+# 
+# CNPG creates these secrets automatically:
+#   - <cluster-name>-app: Contains host, port, dbname, username, password, uri
+#   - <cluster-name>-server-ca-secret: Contains ca.crt, ca.key, tls.crt, tls.key
+#
+# For client certificates, create a Certificate resource using cert-manager
+# that references the cluster's CA issuer.
+#
+# Note: The 'host' from CNPG is just the short name (e.g., 'my-cluster-rw').
+# For cross-namespace access, use a direct value with full FQDN.
+
+# Assuming your CNPG cluster is named "my-db-cluster" in namespace "database"
+env:
+  PORT:
+    value: "8080"
+  DEBUG_MODE:
+    value: "false"
+
+  # Database credentials from CNPG-generated secret
+  # Option 1: Use secret (same namespace only - host is short name)
+  # PG_HOST:
+  #   secretKeyRef:
+  #     name: my-db-cluster-app
+  #     key: host
+  
+  # Option 2: Direct value with full FQDN (works cross-namespace)
+  PG_HOST:
+    value: "my-db-cluster-rw.database.svc.cluster.local"
+  PG_PORT:
+    secretKeyRef:
+      name: my-db-cluster-app
+      key: port
+  PG_DB:
+    secretKeyRef:
+      name: my-db-cluster-app
+      key: dbname
+  PG_USER:
+    secretKeyRef:
+      name: my-db-cluster-app
+      key: username
+  PG_PASSWORD:
+    secretKeyRef:
+      name: my-db-cluster-app
+      key: password
+  PG_SSLMODE:
+    value: "verify-full"
+  PG_LOCAL:
+    value: "false"
+
+  # CORS
+  CORS_ALLOWED_ORIGINS:
+    value: "https://myapp.example.com"
+  CORS_ALLOW_CREDENTIALS:
+    value: "true"
+
+  # OIDC (example with Keycloak)
+  OIDC_ENABLED:
+    value: "true"
+  OIDC_ISSUER:
+    value: "https://keycloak.example.com/realms/my-realm"
+  OIDC_AUDIENCE:
+    value: "my-app"
+
+# TLS certificates for mTLS connection to PostgreSQL
+pgTLS:
+  enabled: true
+  # Client certificate secret (created by cert-manager with CNPG CA issuer)
+  # Contains: tls.crt, tls.key
+  clientSecret: my-db-cluster-client-cert
+  # Server CA secret (created by CNPG)
+  # Contains: ca.crt (we only need this key)
+  caSecret: my-db-cluster-server-ca-secret
+
+# Migrations - auto-read from charts/go-server/migrations/ (symlinked to repo root)
+migrations:
+  enabled: true
+  # files: {}  # Optional: override with inline SQL if needed

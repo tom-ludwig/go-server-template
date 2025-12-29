@@ -1,0 +1,199 @@
+# Default values for go-server
+
+replicaCount: 1
+
+image:
+  repository: ghcr.io/your-org/go-server-template
+  pullPolicy: IfNotPresent
+  # Overrides the image tag whose default is the chart appVersion
+  tag: ""
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+podAnnotations: {}
+podLabels: {}
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  readOnlyRootFilesystem: true
+
+service:
+  type: ClusterIP
+  port: 8080
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 256Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi
+
+livenessProbe:
+  httpGet:
+    path: /health
+    port: http
+  initialDelaySeconds: 5
+  periodSeconds: 10
+
+readinessProbe:
+  httpGet:
+    path: /health
+    port: http
+  initialDelaySeconds: 5
+  periodSeconds: 5
+
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 80
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+# =============================================================================
+# Environment Configuration
+# =============================================================================
+# Supports three patterns:
+#   1. Direct value:      { value: "something" }
+#   2. Secret reference:  { secretKeyRef: { name: "secret-name", key: "key-name" } }
+#   3. ConfigMap ref:     { configMapKeyRef: { name: "cm-name", key: "key-name" } }
+#
+# Example with CNPG-generated secrets:
+#   PG_HOST:
+#     secretKeyRef:
+#       name: my-cluster-app
+#       key: host
+# =============================================================================
+
+env:
+  # Server configuration
+  PORT:
+    value: "8080"
+  DEBUG_MODE:
+    value: "false"
+
+  # Database configuration - typically from CNPG secrets
+  # The CNPG operator creates a secret named "<cluster-name>-app" with these keys:
+  #   host, port, dbname, username, password, uri, jdbc-uri
+  PG_HOST:
+    value: "localhost"
+    # secretKeyRef:
+    #   name: my-cluster-app
+    #   key: host
+  PG_PORT:
+    value: "5432"
+    # secretKeyRef:
+    #   name: my-cluster-app
+    #   key: port
+  PG_DB:
+    value: "app"
+    # secretKeyRef:
+    #   name: my-cluster-app
+    #   key: dbname
+  PG_USER:
+    value: "app"
+    # secretKeyRef:
+    #   name: my-cluster-app
+    #   key: username
+  PG_PASSWORD:
+    value: ""
+    # secretKeyRef:
+    #   name: my-cluster-app
+    #   key: password
+  PG_SSLMODE:
+    value: "verify-full"
+  PG_LOCAL:
+    value: "false"
+
+  # CORS configuration
+  CORS_ALLOWED_ORIGINS:
+    value: "*"
+  CORS_ALLOW_CREDENTIALS:
+    value: "true"
+
+  # OIDC configuration
+  OIDC_ENABLED:
+    value: "false"
+  OIDC_ISSUER:
+    value: ""
+  OIDC_AUDIENCE:
+    value: ""
+
+# Additional environment variables (merged with env above)
+extraEnv: []
+# - name: CUSTOM_VAR
+#   value: "custom-value"
+# - name: SECRET_VAR
+#   valueFrom:
+#     secretKeyRef:
+#       name: my-secret
+#       key: my-key
+
+# =============================================================================
+# TLS/SSL Certificates for Postgres 
+# Mount certificates from CNPG secrets for mTLS connections
+pgTLS:
+  enabled: false
+  # Secret containing client certificates (created by CNPG)
+  clientSecret: ""
+  # Secret containing CA certificate (created by CNPG)
+  caSecret: ""
+  # Mount path for certificates
+  mountPath: /certs
+
+# =============================================================================
+# Database Migrations
+# =============================================================================
+# Uses the official migrate/migrate image with migrations mounted from ConfigMap.
+# By default, SQL files are auto-read from charts/go-server/migrations/ directory
+# (symlinked to the repo's migrations/ folder).
+migrations:
+  enabled: true
+  
+  # Migration image (golang-migrate)
+  image:
+    repository: migrate/migrate
+    tag: v4.18.1
+  
+  # Optional: Define migration files inline (overrides auto-read from directory)
+  files: {}
+  #   000001_init.up.sql: |
+  #     CREATE TABLE users (...);
+  #   000001_init.down.sql: |
+  #     DROP TABLE users;
+  
+  # Optional: Use an existing ConfigMap (overrides both 'files' and auto-read)
+  existingConfigMap: ""
+  
+  # Resources for migration job
+  resources:
+    limits:
+      cpu: 200m
+      memory: 128Mi
+    requests:
+      cpu: 100m
+      memory: 64Mi
+  
+  # Backoff limit for failed migrations
+  backoffLimit: 3
+  
+  # TTL for completed jobs (seconds) - auto-cleanup
+  ttlSecondsAfterFinished: 300
+
+  # Additional annotations for the migration job
+  annotations: {}
+
