@@ -83,8 +83,8 @@ env:
   # Server configuration
   PORT:
     value: "8080"
-  DEBUG_MODE:
-    value: "false"
+  LOG_LEVEL:
+    value: "INFO"
 
   # Database configuration - typically from CNPG secrets
   # The CNPG operator creates a secret named "<cluster-name>-app" with these keys:

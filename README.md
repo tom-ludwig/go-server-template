@@ -29,8 +29,8 @@ Tools which help designing an API (not sponsored or affiliated):
 - **CORS Support:** Configurable CORS middleware
 - **Security Headers:** Security headers middleware
 - **Request Validation:** OpenAPI-based request validation
-- **Colored Logging:** Colored request logs in debug mode
-- **Route Listing:** Automatic route listing on startup (debug mode)
+- **Colored Logging:** Colored request logs when LOG_LEVEL=DEBUG
+- **Route Listing:** Automatic route listing on startup when LOG_LEVEL=DEBUG
 - **Environment Configuration:** Configuration via .env file
 - **Makefile:** Simplified build and development commands
 - **Docker Support:** Dockerfile and docker-compose for easy setup
@@ -177,7 +177,7 @@ Automated dependency updates via [Renovate](https://docs.renovatebot.com/). Requ
 - Run migrations: `make up`
 - Generate the API and DB code: `make generate`
 - Start the server `go run .`
-- In debug mode (`DEBUG_MODE=true`), routes are automatically printed on startup
+- In debug mode (`LOG_LEVEL=DEBUG`), routes are automatically printed on startup
 - Test the server:
 
 ```bash

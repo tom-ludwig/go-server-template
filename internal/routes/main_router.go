@@ -24,7 +24,7 @@ func NewRouter(cfg *config.Config, queries *repository.Queries, jwtAuth *middlew
 	// Core middleware (applied to all routes)
 	r.Use(chimiddleware.RequestID)
 	r.Use(chimiddleware.RealIP)
-	r.Use(middleware.RequestLogger(cfg.DebugMode))
+	r.Use(middleware.RequestLogger(cfg.LogLevel == slog.LevelDebug))
 	r.Use(chimiddleware.Recoverer)
 
 	// Security headers

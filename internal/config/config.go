@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"strconv"
 	"strings"
@@ -9,8 +10,8 @@ import (
 
 type Config struct {
 	// Server
-	Port      string
-	DebugMode bool
+	Port     string
+	LogLevel slog.Level
 
 	// Database
 	PGHost        string
@@ -41,8 +42,8 @@ type Config struct {
 func Load() *Config {
 	cfg := &Config{
 		// Server
-		Port:      getEnv("PORT", "8080"),
-		DebugMode: getEnvBool("DEBUG_MODE", false),
+		Port:     getEnv("PORT", "8080"),
+		LogLevel: getEnvLogLevel("LOG_LEVEL", slog.LevelInfo),
 
 		// Database
 		PGHost:        getEnv("PG_HOST", "localhost"),
@@ -150,6 +151,25 @@ func getEnvSlice(key string, fallback []string) []string {
 		}
 		if len(parts) > 0 {
 			return parts
+		}
+	}
+	return fallback
+}
+
+func getEnvLogLevel(key string, fallback slog.Level) slog.Level {
+	if v, ok := os.LookupEnv(key); ok && v != "" {
+		switch strings.ToUpper(strings.TrimSpace(v)) {
+		case "DEBUG":
+			return slog.LevelDebug
+		case "INFO":
+			return slog.LevelInfo
+		case "WARN", "WARNING":
+			return slog.LevelWarn
+		case "ERROR":
+			return slog.LevelError
+		default:
+			// If invalid, return fallback
+			return fallback
 		}
 	}
 	return fallback

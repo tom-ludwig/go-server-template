@@ -1,5 +1,5 @@
 # Example values for use with CloudNativePG (CNPG)
-# 
+#
 # CNPG creates these secrets automatically:
 #   - <cluster-name>-app: Contains host, port, dbname, username, password, uri
 #   - <cluster-name>-server-ca-secret: Contains ca.crt, ca.key, tls.crt, tls.key
@@ -14,8 +14,8 @@
 env:
   PORT:
     value: "8080"
-  DEBUG_MODE:
-    value: "false"
+  LOG_LEVEL:
+    value: "INFO"
 
   # Database credentials from CNPG-generated secret
   # Option 1: Use secret (same namespace only - host is short name)
@@ -23,25 +23,25 @@ env:
   #   secretKeyRef:
   #     name: my-db-cluster-app
   #     key: host
-  
+
   # Option 2: Direct value with full FQDN (works cross-namespace)
   PG_HOST:
-    value: "my-db-cluster-rw.database.svc.cluster.local"
+    value: "cluster-example-rw.default.svc:5432"
   PG_PORT:
     secretKeyRef:
-      name: my-db-cluster-app
+      name: cluster-example-app
       key: port
   PG_DB:
     secretKeyRef:
-      name: my-db-cluster-app
+      name: cluster-example-app
       key: dbname
   PG_USER:
     secretKeyRef:
-      name: my-db-cluster-app
+      name: cluster-example-app
       key: username
   PG_PASSWORD:
     secretKeyRef:
-      name: my-db-cluster-app
+      name: cluster-example-app
       key: password
   PG_SSLMODE:
     value: "verify-full"
@@ -50,7 +50,7 @@ env:
 
   # CORS
   CORS_ALLOWED_ORIGINS:
-    value: "https://myapp.example.com"
+    value: "*"
   CORS_ALLOW_CREDENTIALS:
     value: "true"
 
@@ -67,10 +67,10 @@ pgTLS:
   enabled: true
   # Client certificate secret (created by cert-manager with CNPG CA issuer)
   # Contains: tls.crt, tls.key
-  clientSecret: my-db-cluster-client-cert
+  clientSecret: postgres-app-client-cert
   # Server CA secret (created by CNPG)
   # Contains: ca.crt (we only need this key)
-  caSecret: my-db-cluster-server-ca-secret
+  caSecret: client-ca-key-pair
 
 # Migrations - auto-read from charts/go-server/migrations/ (symlinked to repo root)
 migrations:

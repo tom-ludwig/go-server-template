@@ -21,17 +21,23 @@ import (
 )
 
 func main() {
-	// Setup Logger
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
-	slog.SetDefault(logger)
-
 	err := godotenv.Load()
 	if err != nil {
+		// Use a temporary logger before config is loaded
+		logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+		slog.SetDefault(logger)
 		slog.Warn("Error loading .env file", "error", err)
 	}
 
 	// Load configuration
 	cfg := config.Load()
+
+	// Setup Logger with configured log level
+	opts := &slog.HandlerOptions{
+		Level: cfg.LogLevel,
+	}
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, opts))
+	slog.SetDefault(logger)
 
 	dbpool, err := connectToDatabase(cfg)
 	if err != nil {
@@ -62,7 +68,7 @@ func main() {
 	router := routes.NewRouter(cfg, queries, jwtAuth)
 
 	// Print registered routes in debug mode
-	if cfg.DebugMode {
+	if cfg.LogLevel == slog.LevelDebug {
 		// Add swagger specs here when you create new OpenAPI files
 		swaggers := []*openapi3.T{}
 		if s, err := health.GetSwagger(); err == nil {
@@ -83,7 +89,7 @@ func main() {
 		IdleTimeout:  60 * time.Second,
 	}
 
-	slog.Info("Server starting", "port", cfg.Port, "debug", cfg.DebugMode)
+	slog.Info("Server starting", "port", cfg.Port, "log_level", cfg.LogLevel.String())
 	err = server.ListenAndServe()
 	if err != nil && err != http.ErrServerClosed {
 		slog.Error("Server failed to start", "error", err)
