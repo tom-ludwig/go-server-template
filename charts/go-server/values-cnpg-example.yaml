@@ -26,7 +26,7 @@ env:
 
   # Option 2: Direct value with full FQDN (works cross-namespace)
   PG_HOST:
-    value: "cluster-example-rw.default.svc:5432"
+    value: "cluster-example-rw.default.svc"
   PG_PORT:
     secretKeyRef:
       name: cluster-example-app
@@ -70,9 +70,10 @@ pgTLS:
   clientSecret: postgres-app-client-cert
   # Server CA secret (created by CNPG)
   # Contains: ca.crt (we only need this key)
-  caSecret: client-ca-key-pair
+  caSecret: server-ca-key-pair
 
 # Migrations - auto-read from charts/go-server/migrations/ (symlinked to repo root)
 migrations:
   enabled: true
+  backoffLimit: 0  # 0 = no retries (fail immediately), 1 = 1 retry, etc.
   # files: {}  # Optional: override with inline SQL if needed

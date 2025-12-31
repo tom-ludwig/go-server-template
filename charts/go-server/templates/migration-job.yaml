@@ -38,13 +38,17 @@ spec:
             {{- toYaml .Values.securityContext | nindent 12 }}
           image: "{{ .Values.migrations.image.repository }}:{{ .Values.migrations.image.tag }}"
           imagePullPolicy: IfNotPresent
-          args:
-            - "-path=/migrations"
-            - "-database=$(DATABASE_URL)"
-            - "up"
+          command:
+            - /bin/sh
+            - -c
+            - |
+              {{- if .Values.pgTLS.enabled }}
+              export DATABASE_URL="postgres://${PG_USER}:${PG_PASSWORD}@${PG_HOST}:${PG_PORT}/${PG_DB}?sslmode=${PG_SSLMODE}&sslcert=${PG_CLIENT_CERT}&sslkey=${PG_CLIENT_KEY}&sslrootcert=${PG_SSLROOTCERT}"
+              {{- else }}
+              export DATABASE_URL="postgres://${PG_USER}:${PG_PASSWORD}@${PG_HOST}:${PG_PORT}/${PG_DB}?sslmode=${PG_SSLMODE}"
+              {{- end }}
+              migrate -path=/migrations -database="${DATABASE_URL}" up
           env:
-            - name: DATABASE_URL
-              value: "postgres://$(PG_USER):$(PG_PASSWORD)@$(PG_HOST):$(PG_PORT)/$(PG_DB)?sslmode=$(PG_SSLMODE){{- if .Values.pgTLS.enabled }}&sslcert=$(PG_CLIENT_CERT)&sslkey=$(PG_CLIENT_KEY)&sslrootcert=$(PG_SSLROOTCERT){{- end }}"
             {{- include "go-server.envVars" . | nindent 12 }}
             {{- if .Values.pgTLS.enabled }}
             - name: PG_CLIENT_CERT
@@ -76,6 +80,7 @@ spec:
         {{- if .Values.pgTLS.enabled }}
         - name: pg-client-certs
           projected:
+            defaultMode: 0600
             sources:
               {{- if .Values.pgTLS.clientSecret }}
               - secret:

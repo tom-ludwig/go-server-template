@@ -69,6 +69,7 @@ spec:
       volumes:
         - name: pg-client-certs
           projected:
+            defaultMode: 0600
             sources:
               {{- if .Values.pgTLS.clientSecret }}
               - secret:
