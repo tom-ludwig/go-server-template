@@ -27,5 +27,5 @@ Migrations:
 {{- end }}
 
 Health Check:
-  curl http://localhost:{{ .Values.service.port }}/health
+  curl http://localhost:{{ .Values.service.port }}/healthz
 

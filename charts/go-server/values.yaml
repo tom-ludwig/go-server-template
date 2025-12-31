@@ -6,7 +6,7 @@ image:
   repository: ghcr.io/tom-ludwig/go-server-template
   pullPolicy: IfNotPresent
   # Overrides the image tag whose default is the chart appVersion
-  tag: ""
+  tag: "latest"
 
 imagePullSecrets: []
 nameOverride: ""
@@ -42,14 +42,14 @@ resources:
 
 livenessProbe:
   httpGet:
-    path: /health
+    path: /healthz
     port: http
   initialDelaySeconds: 5
   periodSeconds: 10
 
 readinessProbe:
   httpGet:
-    path: /health
+    path: /healthz
     port: http
   initialDelaySeconds: 5
   periodSeconds: 5
@@ -144,7 +144,7 @@ extraEnv: []
 #       key: my-key
 
 # =============================================================================
-# TLS/SSL Certificates for Postgres 
+# TLS/SSL Certificates for Postgres
 # Mount certificates from CNPG secrets for mTLS connections
 pgTLS:
   enabled: false
@@ -163,22 +163,22 @@ pgTLS:
 # (symlinked to the repo's migrations/ folder).
 migrations:
   enabled: true
-  
+
   # Migration image (golang-migrate)
   image:
     repository: migrate/migrate
     tag: v4.18.1
-  
+
   # Optional: Define migration files inline (overrides auto-read from directory)
   files: {}
   #   000001_init.up.sql: |
   #     CREATE TABLE users (...);
   #   000001_init.down.sql: |
   #     DROP TABLE users;
-  
+
   # Optional: Use an existing ConfigMap (overrides both 'files' and auto-read)
   existingConfigMap: ""
-  
+
   # Resources for migration job
   resources:
     limits:
@@ -187,13 +187,12 @@ migrations:
     requests:
       cpu: 100m
       memory: 64Mi
-  
+
   # Backoff limit for failed migrations
   backoffLimit: 3
-  
+
   # TTL for completed jobs (seconds) - auto-cleanup
   ttlSecondsAfterFinished: 300
 
   # Additional annotations for the migration job
   annotations: {}
-
