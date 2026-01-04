@@ -167,7 +167,7 @@ migrations:
   # Migration image (golang-migrate)
   image:
     repository: migrate/migrate
-    tag: v4.18.1
+    tag: v4.19.1
 
   # Optional: Define migration files inline (overrides auto-read from directory)
   files: {}
