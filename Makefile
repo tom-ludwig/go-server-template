@@ -3,6 +3,7 @@
 export
 
 MIGRATIONS_DIR = migrations
+SCHEMA_FILE = $(MIGRATIONS_DIR)/schema.sql
 CONTAINER_CMD ?= podman
 
 # Database connection defaults (can be overridden by .env file or environment)
@@ -24,21 +25,26 @@ install-tools: download
 	@echo Installing tools from tools.go
 	@cat tools/tools.go | grep _ | awk -F'"' '{print $$2}' | xargs -tI % go get -tool %
 
-# Create a new migration
-# Usage: make new NAME=your_migration_name
-new:
-ifndef NAME
-	$(error NAME is not set. Usage: make new NAME=your_migration_name)
-endif
-	migrate create -ext sql -dir $(MIGRATIONS_DIR) -seq $(NAME)
+# Declarative schema migration using pg-schema-diff
+schema-apply:
+	@echo "Applying schema from $(SCHEMA_FILE) to database..."
+	@go tool pg-schema-diff apply \
+		--from-dsn "$(DB_URL)" \
+		--to-dir "$(MIGRATIONS_DIR)" \
+		--allow-hazards DELETES_DATA,INDEX_BUILD
 
-up:
-	@echo "Running migrations with DB_URL: postgres://$(PG_USER)@$(PG_HOST):$(PG_PORT)/$(PG_DB)"
-	migrate -path $(MIGRATIONS_DIR) -database "$(DB_URL)" up
+schema-diff:
+	@echo "Showing schema diff between database and $(SCHEMA_FILE)..."
+	@go tool pg-schema-diff diff \
+		--from-dsn "$(DB_URL)" \
+		--to-dir "$(MIGRATIONS_DIR)"
 
-down:
-	@echo "Rolling back migrations with DB_URL: postgres://$(PG_USER)@$(PG_HOST):$(PG_PORT)/$(PG_DB)"
-	migrate -path $(MIGRATIONS_DIR) -database "$(DB_URL)" down
+schema-plan:
+	@echo "Planning schema changes (dry-run)..."
+	@go tool pg-schema-diff plan \
+		--from-dsn "$(DB_URL)" \
+		--to-dir "$(MIGRATIONS_DIR)" \
+		--disable-plan-validation
 
 start-dev-db:
 	$(CONTAINER_CMD) compose -f docker-compose.dev.yaml up -d
@@ -80,5 +86,5 @@ lint-fix:
 	@echo "→ Running golangci-lint with auto-fix..."
 	@golangci-lint run --fix
 
-.PHONY: new up down start-dev-db psql api-gen-code sqlc-gen-code build-swagger-docs generate download install-tools lint lint-fix
+.PHONY: new up down schema-apply schema-diff schema-plan start-dev-db psql api-gen-code sqlc-gen-code build-swagger-docs generate download install-tools lint lint-fix
 

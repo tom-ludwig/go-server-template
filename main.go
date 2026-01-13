@@ -123,6 +123,7 @@ func connectToDatabase(cfg *config.Config) (*pgxpool.Pool, error) {
 		return nil, fmt.Errorf("failed to parse database configuration: %w", err)
 	}
 
+	// TODO: Ping database
 	// Create pool with timeout context
 	return pgxpool.NewWithConfig(ctx, config)
 }

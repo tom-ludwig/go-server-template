@@ -33,7 +33,7 @@ spec:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
       restartPolicy: Never
       containers:
-        - name: migrate
+        - name: schema-migration
           securityContext:
             {{- toYaml .Values.securityContext | nindent 12 }}
           image: "{{ .Values.migrations.image.repository }}:{{ .Values.migrations.image.tag }}"
@@ -42,14 +42,53 @@ spec:
             - /bin/sh
             - -c
             - |
-              {{- if .Values.pgTLS.enabled }}
-              export DATABASE_URL="postgres://${PG_USER}:${PG_PASSWORD}@${PG_HOST}:${PG_PORT}/${PG_DB}?sslmode=${PG_SSLMODE}&sslcert=${PG_CLIENT_CERT}&sslkey=${PG_CLIENT_KEY}&sslrootcert=${PG_SSLROOTCERT}"
+              set -e
+              {{- if and .Values.migrations.credentials .Values.migrations.credentials.enabled }}
+              # Use dedicated migration user credentials
+              DB_USER="${MIGRATE_USER}"
+              DB_PASS="${MIGRATE_PASSWORD}"
               {{- else }}
-              export DATABASE_URL="postgres://${PG_USER}:${PG_PASSWORD}@${PG_HOST}:${PG_PORT}/${PG_DB}?sslmode=${PG_SSLMODE}"
+              # Use app credentials
+              DB_USER="${PG_USER}"
+              DB_PASS="${PG_PASSWORD}"
               {{- end }}
-              migrate -path=/migrations -database="${DATABASE_URL}" up
+              {{- if .Values.pgTLS.enabled }}
+              export DATABASE_URL="postgres://${DB_USER}:${DB_PASS}@${PG_HOST}:${PG_PORT}/${PG_DB}?sslmode=${PG_SSLMODE}&sslcert=${PG_CLIENT_CERT}&sslkey=${PG_CLIENT_KEY}&sslrootcert=${PG_SSLROOTCERT}"
+              {{- else }}
+              export DATABASE_URL="postgres://${DB_USER}:${DB_PASS}@${PG_HOST}:${PG_PORT}/${PG_DB}?sslmode=${PG_SSLMODE}"
+              {{- end }}
+              echo "Applying schema from /schema directory..."
+              pg-schema-diff apply \
+                --from-dsn "${DATABASE_URL}" \
+                --to-dir "/schema" \
+                --skip-confirm-prompt \
+                --allow-hazards DELETES_DATA,INDEX_BUILD
           env:
             {{- include "go-server.envVars" . | nindent 12 }}
+            {{- if and .Values.migrations.credentials .Values.migrations.credentials.enabled }}
+            {{- with .Values.migrations.credentials.username }}
+            - name: MIGRATE_USER
+              {{- if .value }}
+              value: {{ .value | quote }}
+              {{- else if .secretKeyRef }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .secretKeyRef.name }}
+                  key: {{ .secretKeyRef.key }}
+              {{- end }}
+            {{- end }}
+            {{- with .Values.migrations.credentials.password }}
+            - name: MIGRATE_PASSWORD
+              {{- if .value }}
+              value: {{ .value | quote }}
+              {{- else if .secretKeyRef }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .secretKeyRef.name }}
+                  key: {{ .secretKeyRef.key }}
+              {{- end }}
+            {{- end }}
+            {{- end }}
             {{- if .Values.pgTLS.enabled }}
             - name: PG_CLIENT_CERT
               value: {{ .Values.pgTLS.mountPath }}/tls.crt
@@ -61,8 +100,8 @@ spec:
           resources:
             {{- toYaml .Values.migrations.resources | nindent 12 }}
           volumeMounts:
-            - name: migrations
-              mountPath: /migrations
+            - name: schema
+              mountPath: /schema
               readOnly: true
             {{- if .Values.pgTLS.enabled }}
             - name: pg-client-certs
@@ -70,12 +109,12 @@ spec:
               readOnly: true
             {{- end }}
       volumes:
-        - name: migrations
+        - name: schema
           configMap:
             {{- if .Values.migrations.existingConfigMap }}
             name: {{ .Values.migrations.existingConfigMap }}
             {{- else }}
-            name: {{ include "go-server.fullname" . }}-migrations
+            name: {{ include "go-server.fullname" . }}-schema
             {{- end }}
         {{- if .Values.pgTLS.enabled }}
         - name: pg-client-certs

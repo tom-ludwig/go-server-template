@@ -25,7 +25,7 @@ Tools which help designing an API (not sponsored or affiliated):
 - **Chi Router:** Lightweight, fast HTTP router
 - **OpenAPI Code Generation:** Generate server code from OpenAPI spec
 - **PostgreSQL:** Database support with sqlc for type-safe queries
-- **Database Migrations:** Version-controlled schema migrations
+- **Database Migrations:** Declarative schema migrations using pg-schema-diff
 - **CORS Support:** Configurable CORS middleware
 - **Security Headers:** Security headers middleware
 - **Request Validation:** OpenAPI-based request validation
@@ -79,11 +79,13 @@ This template follows a code-generation-first approach:
 
 # Requirements
 
-Install both with go tools: `make install-tools`
-or via homebrew:
+Install tools with: `make install-tools`
 
-- sqlc: `brew install sqlc`
-- golang-migrate: `brew install golang-migrate`
+This will install:
+
+- sqlc (via tools.go)
+- oapi-codegen (via tools.go)
+- pg-schema-diff (via tools.go)
 
 ## Configuration
 
@@ -97,13 +99,37 @@ The Makefile automatically reads `.env` values for migrations and database comma
 
 ## Migrations
 
-New: `make new NAME=xxx`
+This project uses **declarative schema migrations** with [pg-schema-diff](https://github.com/stripe/pg-schema-diff) from Stripe. The schema is defined in `migrations/schema.sql` and applied declaratively to match the desired state.
 
-Up: `make up`
+### Local Development
 
-Down: `make down`
+**Plan changes (dry-run):**
 
-Database connection settings are read from `.env` (see Configuration section above). Migrations live in `migrations/`.
+```bash
+make schema-plan
+```
+
+**Show diff between database and schema:**
+
+```bash
+make schema-diff
+```
+
+**Apply schema changes:**
+
+```bash
+make schema-apply
+```
+
+Database connection settings are read from `.env` (see Configuration section above). The schema file lives in `migrations/schema.sql`.
+
+### How It Works
+
+Instead of versioned migration files, you maintain a single `schema.sql` file that represents the desired database schema. `pg-schema-diff` compares your current database state with the desired schema and generates the necessary migration plan automatically.
+
+- **Plan**: Shows what changes would be made without applying them
+- **Diff**: Shows the differences between the database and schema file
+- **Apply**: Applies the schema changes to make the database match the schema file
 
 ## DB Schema
 
@@ -174,7 +200,7 @@ Automated dependency updates via [Renovate](https://docs.renovatebot.com/). Requ
 - Install the Requirements: `make install-tools`
 - Copy the example `.env.example` file and adjust to your use case: `cp .env.example .env`
 - Prepare local development (start postgres): `make start-dev-db`
-- Run migrations: `make up`
+- Apply schema: `make schema-apply`
 - Generate the API and DB code: `make generate`
 - Start the server `go run .`
 - In debug mode (`LOG_LEVEL=DEBUG`), routes are automatically printed on startup
@@ -194,6 +220,7 @@ docker build -t my-app .
 ```
 
 Image is pushed to GitHub Container Registry via GitHub Actions on:
+
 - Push to `main` → `latest` tag
 - Git tags `v*.*.*` -> version tags
 
@@ -204,7 +231,77 @@ helm install my-app ./charts/go-server -f my-values.yaml
 ```
 
 **Key features:**
-- Migrations run as pre-hook (blocks deployment if they fail)
-- SQL files auto-read from `migrations/` via symlink
-- direct values or `secretKeyRef` for CNPG secrets
+
+- Schema migrations run as pre-hook using pg-schema-diff (blocks deployment if they fail)
+- Schema file (`migrations/schema.sql`) auto-read from chart directory
+- Automatic hazard handling (DELETES_DATA, INDEX_BUILD) for safe automated migrations
+- Direct values or `secretKeyRef` for CNPG secrets
 - TLS cert mounting for PostgreSQL mTLS
+
+The migration job:
+
+- Uses `pg-schema-diff apply` to declaratively apply schema changes
+- Automatically skips confirmation prompts (`--skip-confirm-prompt`)
+- Allows common hazards for automated operation (`--allow-hazards`)
+- Runs before install/upgrade to ensure schema is up-to-date
+
+#### Local Testing with Minikube or Kind
+
+Start local k8s cluster and install CNPG with helm:
+
+```bash
+helm repo add cnpg https://cloudnative-pg.github.io/charts
+helm upgrade --install cnpg \
+  --namespace cnpg-system \
+  --create-namespace \
+  cnpg/cloudnative-pg
+```
+
+Create a cluster with a dedicated migration user:
+
+```bash
+cat <<EOF | kubectl apply -f -
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: cluster-example
+spec:
+  instances: 1
+  storage:
+    size: 1Gi
+  bootstrap:
+    initdb:
+      database: app
+      owner: app
+      postInitApplicationSQL:
+        - CREATE USER migrator WITH PASSWORD 'migrator' CREATEDB;
+
+        # Grant group membership so migrator can alter 'app' owned tables
+        - GRANT app TO migrator;
+
+        # Standard Connection/Schema permissions
+        - GRANT ALL PRIVILEGES ON DATABASE app TO migrator;
+        - GRANT ALL PRIVILEGES ON SCHEMA public TO migrator;
+
+        # - ALTER USER migrator SET ROLE app;
+EOF
+```
+
+This creates:
+
+- **app** user: For the application (standard CNPG user)
+- **migrator** user: For schema migrations with `CREATEDB` privilege (required by pg-schema-diff for plan validation)
+
+Build and load the Docker image into the cluster:
+
+```bash
+docker build -t my-app:latest .
+kind load docker-image my-app:latest
+```
+
+Deploy the Helm chart:
+
+```bash
+helm install my-app ./charts/go-server -f ./charts/go-server/values-cnpg-unsecure-example.yaml
+```
+

@@ -2,7 +2,7 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{ include "go-server.fullname" . }}-migrations
+  name: {{ include "go-server.fullname" . }}-schema
   labels:
     {{- include "go-server.labels" . | nindent 4 }}
     app.kubernetes.io/component: migration
@@ -11,24 +11,22 @@ metadata:
     "helm.sh/hook-weight": "-10"
     "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
 data:
-  {{- /* Priority: existingConfigMap > files in values > files from migrations/ directory */}}
+  {{- /* Priority: existingConfigMap > schema in values > schema.sql from chart directory */}}
   {{- if not .Values.migrations.existingConfigMap }}
-    {{- if .Values.migrations.files }}
-      {{- /* Use files defined in values.yaml */}}
-      {{- range $filename, $content := .Values.migrations.files }}
-  {{ $filename }}: |
-{{ $content | indent 4 }}
-      {{- end }}
+    {{- $schemaFilePath := .Values.migrations.schemaFile | default "migrations/schema.sql" }}
+    {{- $schemaFileName := base $schemaFilePath }}
+    {{- if .Values.migrations.schema }}
+      {{- /* Use schema defined inline in values.yaml */}}
+  {{ $schemaFileName }}: |
+{{ .Values.migrations.schema | indent 4 }}
     {{- else }}
-      {{- /* Auto-read from migrations/ directory in chart */}}
-      {{- $files := .Files.Glob "migrations/*.sql" }}
-      {{- if $files }}
-        {{- range $path, $content := $files }}
-  {{ base $path }}: |
-{{ $content | toString | indent 4 }}
-        {{- end }}
+      {{- /* Auto-read schema.sql from migrations directory in chart */}}
+      {{- $schemaContent := .Files.Get $schemaFilePath }}
+      {{- if $schemaContent }}
+  {{ $schemaFileName }}: |
+{{ $schemaContent | indent 4 }}
       {{- else }}
-        {{- fail "No migration files found. Add SQL files to charts/go-server/migrations/ or define migrations.files in values.yaml" }}
+        {{- fail (printf "No schema file found at %s. Add schema.sql to charts/go-server/migrations/ or define migrations.schema in values.yaml" $schemaFilePath) }}
       {{- end }}
     {{- end }}
   {{- end }}

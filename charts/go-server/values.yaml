@@ -158,26 +158,45 @@ pgTLS:
 # =============================================================================
 # Database Migrations
 # =============================================================================
-# Uses the official migrate/migrate image with migrations mounted from ConfigMap.
-# By default, SQL files are auto-read from charts/go-server/migrations/ directory
-# (symlinked to the repo's migrations/ folder).
+# Uses pg-schema-diff for declarative schema migrations.
+# The schema.sql file is mounted from ConfigMap and applied to the database.
 migrations:
   enabled: true
 
-  # Migration image (golang-migrate)
+  # Migration image (must include pg-schema-diff binary)
   image:
-    repository: migrate/migrate
-    tag: v4.18.1
+    repository: ghcr.io/tom-ludwig/pg-schema-diff-image
+    tag: latest
 
-  # Optional: Define migration files inline (overrides auto-read from directory)
-  files: {}
-  #   000001_init.up.sql: |
+  # Schema file path (default: migrations/schema.sql)
+  # This should point to the schema.sql file in the migrations directory
+  schemaFile: migrations/schema.sql
+
+  # Optional: Define schema.sql inline (overrides auto-read from directory)
+  schema: ""
+  #   schema: |
   #     CREATE TABLE users (...);
-  #   000001_init.down.sql: |
-  #     DROP TABLE users;
 
-  # Optional: Use an existing ConfigMap (overrides both 'files' and auto-read)
+  # Optional: Use an existing ConfigMap (overrides both 'schema' and auto-read)
   existingConfigMap: ""
+
+  # Optional: Separate credentials for migration user (with CREATEDB privilege)
+  # If not set, uses the same credentials as the app (PG_USER, PG_PASSWORD, etc.)
+  # The migration user needs CREATEDB privilege for pg-schema-diff plan validation
+  credentials:
+    enabled: false
+    # username:
+    #   value: "migrator"
+    #   # Or use secretKeyRef:
+    #   # secretKeyRef:
+    #   #   name: cluster-example-migrator
+    #   #   key: username
+    # password:
+    #   value: ""
+    #   # Or use secretKeyRef:
+    #   # secretKeyRef:
+    #   #   name: cluster-example-migrator
+    #   #   key: password
 
   # Resources for migration job
   resources:

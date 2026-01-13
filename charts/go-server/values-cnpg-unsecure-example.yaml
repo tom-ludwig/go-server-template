@@ -10,6 +10,12 @@
 # Note: The 'host' from CNPG is just the short name (e.g., 'my-cluster-rw').
 # For cross-namespace access, use a direct value with full FQDN.
 
+image:
+  repository: my-app
+  pullPolicy: IfNotPresent
+  # Overrides the image tag whose default is the chart appVersion
+  tag: "latest"
+
 # Assuming your CNPG cluster is named "my-db-cluster" in namespace "database"
 env:
   PORT:
@@ -44,9 +50,9 @@ env:
       name: cluster-example-app
       key: password
   PG_SSLMODE:
-    value: "verify-full"
+    value: "disable"
   PG_LOCAL:
-    value: "false"
+    value: "true"
 
   # CORS
   CORS_ALLOWED_ORIGINS:
@@ -64,7 +70,7 @@ env:
 
 # TLS certificates for mTLS connection to PostgreSQL
 pgTLS:
-  enabled: true
+  enabled: false
   # Client certificate secret (created by cert-manager with CNPG CA issuer)
   # Contains: tls.crt, tls.key
   clientSecret: postgres-app-client-cert
@@ -76,4 +82,10 @@ pgTLS:
 migrations:
   enabled: true
   backoffLimit: 0 # 0 = no retries (fail immediately), 1 = 1 retry, etc.
-  # files: {}  # Optional: override with inline SQL if needed
+  # Dedicated migration user with CREATEDB privilege for pg-schema-diff plan validation
+  credentials:
+    enabled: true
+    username:
+      value: "migrator"
+    password:
+      value: "migrator"
