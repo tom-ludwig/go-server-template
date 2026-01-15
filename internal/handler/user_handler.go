@@ -42,16 +42,16 @@ func (u *UserHandler) GetUser(ctx context.Context, request users.GetUserRequestO
 	}
 	return users.GetUser200JSONResponse{
 		UserId:    user.UserID.String(),
-		FirstName: user.FirstName,
-		LastName:  user.LastName,
+		FirstName: user.FirstName.String,
+		LastName:  user.LastName.String,
 		Email:     user.Email.String,
 	}, nil
 }
 
 func (u *UserHandler) CreateUser(ctx context.Context, request users.CreateUserRequestObject) (users.CreateUserResponseObject, error) {
 	newUser, err := u.Queries.CreateUser(ctx, repository.CreateUserParams{
-		FirstName: request.Body.FirstName,
-		LastName:  request.Body.LastName,
+		FirstName: pgtype.Text{String: request.Body.FirstName, Valid: true},
+		LastName:  pgtype.Text{String: request.Body.LastName, Valid: true},
 		Email:     pgtype.Text{String: request.Body.Email, Valid: true},
 	})
 
@@ -65,8 +65,8 @@ func (u *UserHandler) CreateUser(ctx context.Context, request users.CreateUserRe
 
 	return users.CreateUser201JSONResponse{
 		UserId:    newUser.UserID.String(),
-		FirstName: newUser.FirstName,
-		LastName:  newUser.LastName,
+		FirstName: newUser.FirstName.String,
+		LastName:  newUser.LastName.String,
 		Email:     newUser.Email.String,
 	}, nil
 }
@@ -151,8 +151,8 @@ func (u *UserHandler) GetUsers(ctx context.Context, request users.GetUsersReques
 	for _, dbUser := range dbUsers {
 		apiUsers = append(apiUsers, users.User{
 			UserId:    dbUser.UserID.String(),
-			FirstName: dbUser.FirstName,
-			LastName:  dbUser.LastName,
+			FirstName: dbUser.FirstName.String,
+			LastName:  dbUser.LastName.String,
 			Email:     dbUser.Email.String,
 		})
 	}
