@@ -7,10 +7,9 @@ metadata:
     {{- include "go-server.labels" . | nindent 4 }}
     app.kubernetes.io/component: migration
   annotations:
-    # Run before install/upgrade, delete on success
     "helm.sh/hook": pre-install,pre-upgrade
     "helm.sh/hook-weight": "-5"
-    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+    "helm.sh/hook-delete-policy": before-hook-creation
     {{- with .Values.migrations.annotations }}
     {{- toYaml . | nindent 4 }}
     {{- end }}
@@ -18,7 +17,11 @@ spec:
   {{- if .Values.migrations.ttlSecondsAfterFinished }}
   ttlSecondsAfterFinished: {{ .Values.migrations.ttlSecondsAfterFinished }}
   {{- end }}
-  backoffLimit: {{ .Values.migrations.backoffLimit | default 3 }}
+  {{- if hasKey .Values.migrations "backoffLimit" }}
+  backoffLimit: {{ .Values.migrations.backoffLimit }}
+  {{- else }}
+  backoffLimit: 3
+  {{- end }}
   template:
     metadata:
       labels:
@@ -36,30 +39,61 @@ spec:
         - name: migrate
           securityContext:
             {{- toYaml .Values.securityContext | nindent 12 }}
+          # Use the sqldef image (psqldef is the entrypoint)
           image: "{{ .Values.migrations.image.repository }}:{{ .Values.migrations.image.tag }}"
           imagePullPolicy: IfNotPresent
-          command:
-            - /bin/sh
-            - -c
-            - |
-              {{- if .Values.pgTLS.enabled }}
-              export DATABASE_URL="postgres://${PG_USER}:${PG_PASSWORD}@${PG_HOST}:${PG_PORT}/${PG_DB}?sslmode=${PG_SSLMODE}&sslcert=${PG_CLIENT_CERT}&sslkey=${PG_CLIENT_KEY}&sslrootcert=${PG_SSLROOTCERT}"
-              {{- else }}
-              export DATABASE_URL="postgres://${PG_USER}:${PG_PASSWORD}@${PG_HOST}:${PG_PORT}/${PG_DB}?sslmode=${PG_SSLMODE}"
-              {{- end }}
-              migrate -path=/migrations -database="${DATABASE_URL}" up
+          
+          # ConfigMap mounts schema.sql at /migrations/schema.sql
+          args:
+            - "--host=$(PG_HOST)"
+            - "--port=$(PG_PORT)"
+            - "--user=$(PG_USER)"
+            {{- if .Values.migrations.enableDrop }}
+            - "--config-inline=enable_drop: {{ .Values.migrations.enableDrop }}"
+            {{- end }}
+            {{- if .Values.migrations.createIndexConcurrently }}
+            - "--config-inline=create_index_concurrently: {{ .Values.migrations.createIndexConcurrently }}"
+            {{- end }}
+            - "--file=/migrations/schema.sql"
+            - "$(PG_DB)"
+            
           env:
             {{- include "go-server.envVars" . | nindent 12 }}
-            {{- if .Values.pgTLS.enabled }}
-            - name: PG_CLIENT_CERT
-              value: {{ .Values.pgTLS.mountPath }}/tls.crt
-            - name: PG_CLIENT_KEY
-              value: {{ .Values.pgTLS.mountPath }}/tls.key
-            - name: PG_SSLROOTCERT
-              value: {{ .Values.pgTLS.mountPath }}/ca.crt
+            
+            {{- if .Values.env.PG_PASSWORD.secretKeyRef }}
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.env.PG_PASSWORD.secretKeyRef.name }}
+                  key: {{ .Values.env.PG_PASSWORD.secretKeyRef.key }}
+            {{- else if .Values.env.PG_PASSWORD.configMapKeyRef }}
+            - name: PGPASSWORD
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ .Values.env.PG_PASSWORD.configMapKeyRef.name }}
+                  key: {{ .Values.env.PG_PASSWORD.configMapKeyRef.key }}
+            {{- else if .Values.env.PG_PASSWORD.value }}
+            - name: PGPASSWORD
+              value: {{ .Values.env.PG_PASSWORD.value | quote }}
             {{- end }}
+
+            {{- if .Values.pgTLS.enabled }}
+            - name: PGSSLMODE
+              value: "{{ .Values.pgTLS.sslMode | default "verify-full" }}"
+            - name: PGSSLCERT
+              value: {{ .Values.pgTLS.mountPath }}/tls.crt
+            - name: PGSSLKEY
+              value: {{ .Values.pgTLS.mountPath }}/tls.key
+            - name: PGSSLROOTCERT
+              value: {{ .Values.pgTLS.mountPath }}/ca.crt
+            {{- else }}
+            - name: PGSSLMODE
+              value: "{{ .Values.pgTLS.sslMode | default "disable" }}"
+            {{- end }}
+
           resources:
             {{- toYaml .Values.migrations.resources | nindent 12 }}
+          
           volumeMounts:
             - name: migrations
               mountPath: /migrations
@@ -69,6 +103,7 @@ spec:
               mountPath: {{ .Values.pgTLS.mountPath }}
               readOnly: true
             {{- end }}
+      
       volumes:
         - name: migrations
           configMap:

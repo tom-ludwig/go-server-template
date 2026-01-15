@@ -1,0 +1,91 @@
+# =============================================================================
+# WARNING: FOR LOCAL DEVELOPMENT ONLY
+# =============================================================================
+# This values file uses unsecure database connections (SSL disabled) and is
+# intended ONLY for local development/testing with Minikube or Kind.
+# 
+# DO NOT use this configuration in production or any shared environment.
+# =============================================================================
+#
+# Example values for use with CloudNativePG (CNPG) in local development
+#
+# CNPG creates these secrets automatically:
+#   - <cluster-name>-app: Contains host, port, dbname, username, password, uri
+#
+# Note: The 'host' from CNPG is just the short name (e.g., 'my-cluster-rw').
+# For cross-namespace access, use a direct value with full FQDN.
+
+image:
+  repository: go-server-template
+  pullPolicy: IfNotPresent
+  # Overrides the image tag whose default is the chart appVersion
+  tag: "latest"
+
+# Assuming your CNPG cluster is named "my-db-cluster" in namespace "database"
+env:
+  PORT:
+    value: "8080"
+  LOG_LEVEL:
+    value: "INFO"
+
+  # Database credentials from CNPG-generated secret
+  # Option 1: Use secret (same namespace only - host is short name)
+  # PG_HOST:
+  #   secretKeyRef:
+  #     name: my-db-cluster-app
+  #     key: host
+
+  # Option 2: Direct value with full FQDN (works cross-namespace)
+  PG_HOST:
+    value: "cluster-example-rw.default.svc"
+  PG_PORT:
+    secretKeyRef:
+      name: cluster-example-app
+      key: port
+  PG_DB:
+    secretKeyRef:
+      name: cluster-example-app
+      key: dbname
+  PG_USER:
+    secretKeyRef:
+      name: cluster-example-app
+      key: username
+  PG_PASSWORD:
+    secretKeyRef:
+      name: cluster-example-app
+      key: password
+  PG_SSLMODE:
+    value: "disable"
+  PG_LOCAL:
+    value: "true"
+
+  # CORS
+  CORS_ALLOWED_ORIGINS:
+    value: "*"
+  CORS_ALLOW_CREDENTIALS:
+    value: "true"
+
+  # OIDC (example with Keycloak)
+  OIDC_ENABLED:
+    value: "false"
+  OIDC_ISSUER:
+    value: ""
+  OIDC_AUDIENCE:
+    value: ""
+
+# TLS certificates for mTLS connection to PostgreSQL
+pgTLS:
+  enabled: false
+  # Client certificate secret (created by cert-manager with CNPG CA issuer)
+  # Contains: tls.crt, tls.key
+  clientSecret: postgres-app-client-cert
+  # Server CA secret (created by CNPG)
+  # Contains: ca.crt (we only need this key)
+  caSecret: server-ca-key-pair
+
+# Migrations - auto-read from charts/go-server/migrations/ (symlinked to repo root)
+migrations:
+  enabled: true
+  backoffLimit: 0 # 0 = no retries (fail immediately), 1 = 1 retry, etc.
+  enableDrop: true 
+  createIndexConcurrently: true  # Recommended for production to avoid locking

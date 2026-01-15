@@ -42,17 +42,17 @@ resources:
 
 livenessProbe:
   httpGet:
-    path: /healthz
+    path: /livez
     port: http
   initialDelaySeconds: 5
   periodSeconds: 10
 
 readinessProbe:
   httpGet:
-    path: /healthz
+    path: /readyz
     port: http
   initialDelaySeconds: 5
-  periodSeconds: 5
+  periodSeconds: 10
 
 autoscaling:
   enabled: false
@@ -86,33 +86,34 @@ env:
   LOG_LEVEL:
     value: "INFO"
 
-  # Database configuration - typically from CNPG secrets
+  # Database configuration
+  # For production: Use secretKeyRef to reference CNPG-generated secrets
   # The CNPG operator creates a secret named "<cluster-name>-app" with these keys:
   #   host, port, dbname, username, password, uri, jdbc-uri
   PG_HOST:
     value: "localhost"
     # secretKeyRef:
-    #   name: my-cluster-app
+    #   name: cluster-example-app
     #   key: host
   PG_PORT:
     value: "5432"
     # secretKeyRef:
-    #   name: my-cluster-app
+    #   name: cluster-example-app
     #   key: port
   PG_DB:
     value: "app"
     # secretKeyRef:
-    #   name: my-cluster-app
+    #   name: cluster-example-app
     #   key: dbname
   PG_USER:
     value: "app"
     # secretKeyRef:
-    #   name: my-cluster-app
+    #   name: cluster-example-app
     #   key: username
   PG_PASSWORD:
     value: ""
     # secretKeyRef:
-    #   name: my-cluster-app
+    #   name: cluster-example-app
     #   key: password
   PG_SSLMODE:
     value: "verify-full"
@@ -144,8 +145,12 @@ extraEnv: []
 #       key: my-key
 
 # =============================================================================
-# TLS/SSL Certificates for Postgres
-# Mount certificates from CNPG secrets for mTLS connections
+# TLS/SSL Certificates for PostgreSQL
+# =============================================================================
+# Mount certificates from CNPG secrets for mTLS connections.
+# Required for production deployments with SSL enabled.
+# For local development, set enabled: false and use PG_SSLMODE: "disable"
+# =============================================================================
 pgTLS:
   enabled: false
   # Secret containing client certificates (created by CNPG)
@@ -158,26 +163,35 @@ pgTLS:
 # =============================================================================
 # Database Migrations
 # =============================================================================
-# Uses the official migrate/migrate image with migrations mounted from ConfigMap.
-# By default, SQL files are auto-read from charts/go-server/migrations/ directory
+# Uses psqldef for declarative schema migrations.
+# By default, reads schema.sql from charts/go-server/migrations/ directory
 # (symlinked to the repo's migrations/ folder).
 migrations:
   enabled: true
 
-  # Migration image (golang-migrate)
+  # Migration image (psqldef from sqldef project)
   image:
-    repository: migrate/migrate
-    tag: v4.18.1
+    repository: docker.io/sqldef/psqldef
+    tag: latest
 
-  # Optional: Define migration files inline (overrides auto-read from directory)
-  files: {}
-  #   000001_init.up.sql: |
-  #     CREATE TABLE users (...);
-  #   000001_init.down.sql: |
-  #     DROP TABLE users;
+  # Schema file path relative to chart root (defaults to migrations/schema.sql)
+  # This file will be mounted at /migrations/schema.sql in the migration job
+  schemaFile: migrations/schema.sql
 
-  # Optional: Use an existing ConfigMap (overrides both 'files' and auto-read)
+  # Optional: Define schema content inline (overrides schemaFile)
+  schema: ""
+  # schema: |
+  #   CREATE TABLE users (...);
+
+  # Optional: Use an existing ConfigMap (overrides both schemaFile and schema)
   existingConfigMap: ""
+
+  # psqldef configuration options
+  # enableDrop: Enable destructive changes (DROP statements). Use with caution.
+  enableDrop: false
+  # createIndexConcurrently: Add CONCURRENTLY to CREATE INDEX statements to avoid table locking.
+  # Recommended for production environments.
+  createIndexConcurrently: true
 
   # Resources for migration job
   resources:
@@ -189,10 +203,14 @@ migrations:
       memory: 64Mi
 
   # Backoff limit for failed migrations
+  # Set to 0 to disable retries (job fails immediately on first failure)
+  # Set to 1+ to allow that many retry attempts
   backoffLimit: 3
 
   # TTL for completed jobs (seconds) - auto-cleanup
-  ttlSecondsAfterFinished: 300
+  # Set to 0 to keep jobs indefinitely, or specify seconds (e.g., 3600 = 1 hour)
+  # Default: 3600 (1 hour) - allows time to check logs of both successful and failed jobs
+  ttlSecondsAfterFinished: 3600
 
   # Additional annotations for the migration job
   annotations: {}
