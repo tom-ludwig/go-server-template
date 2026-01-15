@@ -3,7 +3,6 @@
 export
 
 MIGRATIONS_DIR = migrations
-SCHEMA_FILE = $(MIGRATIONS_DIR)/schema.sql
 CONTAINER_CMD ?= podman
 
 # Database connection defaults (can be overridden by .env file or environment)
@@ -27,14 +26,14 @@ install-tools: download
 
 # Declarative schema migration using pg-schema-diff
 schema-apply:
-	@echo "Applying schema from $(SCHEMA_FILE) to database..."
+	@echo "Applying schema to database..."
 	@go tool pg-schema-diff apply \
 		--from-dsn "$(DB_URL)" \
 		--to-dir "$(MIGRATIONS_DIR)" \
 		--allow-hazards DELETES_DATA,INDEX_BUILD
 
 schema-diff:
-	@echo "Showing schema diff between database and $(SCHEMA_FILE)..."
+	@echo "Showing schema diff between database and file..."
 	@go tool pg-schema-diff diff \
 		--from-dsn "$(DB_URL)" \
 		--to-dir "$(MIGRATIONS_DIR)"

@@ -261,6 +261,15 @@ Create a cluster with a dedicated migration user:
 
 ```bash
 cat <<EOF | kubectl apply -f -
+apiVersion: v1
+kind: Secret
+metadata:
+  name: pg-migrator
+type: kubernetes.io/basic-auth
+stringData:
+  username: migrator
+  password: t5cHzLU9OwwWKrB
+---
 apiVersion: postgresql.cnpg.io/v1
 kind: Cluster
 metadata:
@@ -269,19 +278,27 @@ spec:
   instances: 1
   storage:
     size: 1Gi
+  managed:
+    roles:
+      - name: migrator
+        ensure: present
+        login: true
+        createdb: true
+        passwordSecret:
+          name: pg-migrator
   bootstrap:
     initdb:
       database: app
       owner: app
-      postInitApplicationSQL:
-        - CREATE USER migrator WITH PASSWORD 'migrator' CREATEDB;
+      # postInitApplicationSQL:
+        # - CREATE USER migrator WITH PASSWORD 'migrator' CREATEDB;
 
         # Grant group membership so migrator can alter 'app' owned tables
-        - GRANT app TO migrator;
+        # - GRANT app TO migrator;
 
         # Standard Connection/Schema permissions
-        - GRANT ALL PRIVILEGES ON DATABASE app TO migrator;
-        - GRANT ALL PRIVILEGES ON SCHEMA public TO migrator;
+        # - GRANT ALL PRIVILEGES ON DATABASE app TO migrator;
+        # - GRANT ALL PRIVILEGES ON SCHEMA public TO migrator;
 
         # - ALTER USER migrator SET ROLE app;
 EOF

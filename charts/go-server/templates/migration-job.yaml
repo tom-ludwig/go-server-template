@@ -52,11 +52,12 @@ spec:
               DB_USER="${PG_USER}"
               DB_PASS="${PG_PASSWORD}"
               {{- end }}
-              {{- if .Values.pgTLS.enabled }}
-              export DATABASE_URL="postgres://${DB_USER}:${DB_PASS}@${PG_HOST}:${PG_PORT}/${PG_DB}?sslmode=${PG_SSLMODE}&sslcert=${PG_CLIENT_CERT}&sslkey=${PG_CLIENT_KEY}&sslrootcert=${PG_SSLROOTCERT}"
-              {{- else }}
-              export DATABASE_URL="postgres://${DB_USER}:${DB_PASS}@${PG_HOST}:${PG_PORT}/${PG_DB}?sslmode=${PG_SSLMODE}"
-              {{- end }}
+              export DATABASE_URL="postgres://${DB_USER}:${DB_PASS}@${PG_HOST}:${PG_PORT}/${PG_DB}?sslmode=disable"
+              # {{- if .Values.pgTLS.enabled }}
+              # export DATABASE_URL="postgres://${DB_USER}:${DB_PASS}@${PG_HOST}:${PG_PORT}/${PG_DB}?sslmode=${PG_SSLMODE}&sslcert=${PG_CLIENT_CERT}&sslkey=${PG_CLIENT_KEY}&sslrootcert=${PG_SSLROOTCERT}"
+              # {{- else }}
+              # export DATABASE_URL="postgres://${DB_USER}:${DB_PASS}@${PG_HOST}:${PG_PORT}/${PG_DB}?sslmode=${PG_SSLMODE}"
+              # {{- end }}
               echo "Applying schema from /schema directory..."
               pg-schema-diff apply \
                 --from-dsn "${DATABASE_URL}" \
