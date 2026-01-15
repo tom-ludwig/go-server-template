@@ -1,4 +1,4 @@
-CREATE TABLE testusers (
+CREATE TABLE users (
     user_id      UUID PRIMARY KEY DEFAULT uuidv7(),
     email        TEXT,
     first_name   TEXT,
