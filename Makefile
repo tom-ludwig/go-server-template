@@ -2,7 +2,6 @@
 -include .env
 export
 
-MIGRATIONS_DIR = migrations
 CONTAINER_CMD ?= podman
 
 # Database connection defaults (can be overridden by .env file or environment)
@@ -15,6 +14,13 @@ PG_SSLMODE ?= disable
 
 # Construct DB_URL from environment variables
 DB_URL = postgres://$(PG_USER):$(PG_PASSWORD)@$(PG_HOST):$(PG_PORT)/$(PG_DB)?sslmode=$(PG_SSLMODE)
+SCHEMA_FILE ?= migrations/schema.sql
+OLD_SCHEMA  ?= migrations/current-schema.sql
+
+TERM_BOLD  := $(shell tput bold)
+TERM_RESET := $(shell tput sgr0)
+TERM_GREEN := $(shell tput setaf 2)
+TERM_RED   := $(shell tput setaf 1)
 
 download:
 	@echo "Download go.mod dependencies"
@@ -24,21 +30,32 @@ install-tools: download
 	@echo Installing tools from tools.go
 	@cat tools/tools.go | grep _ | awk -F'"' '{print $$2}' | xargs -tI % go get -tool %
 
-# Create a new migration
-# Usage: make new NAME=your_migration_name
-new:
-ifndef NAME
-	$(error NAME is not set. Usage: make new NAME=your_migration_name)
-endif
-	migrate create -ext sql -dir $(MIGRATIONS_DIR) -seq $(NAME)
+plan: ## Preview changes (Dry Run)
+	@echo "$(TERM_BOLD)» Checking for schema changes...$(TERM_RESET)"
+	@PGSSLMODE=disable PGPASSWORD=$(PG_PASSWORD) LOG_LEVEL=INFO go tool psqldef -h $(PG_HOST) -p $(PG_PORT) -U $(PG_USER) $(PG_DB) --dry-run < $(SCHEMA_FILE)
 
-up:
-	@echo "Running migrations with DB_URL: postgres://$(PG_USER)@$(PG_HOST):$(PG_PORT)/$(PG_DB)"
-	migrate -path $(MIGRATIONS_DIR) -database "$(DB_URL)" up
+apply: ## Apply changes to DB
+	@echo "$(TERM_BOLD)» Applying schema changes...$(TERM_RESET)"
+	@PGSSLMODE=disable PGPASSWORD=$(PG_PASSWORD) LOG_LEVEL=INFO go tool psqldef --config sqldef.yaml -h $(PG_HOST) -p $(PG_PORT) -U $(PG_USER) $(PG_DB) < $(SCHEMA_FILE) && \
+	echo "$(TERM_GREEN)✔ Schema applied successfully.$(TERM_RESET)"
 
-down:
-	@echo "Rolling back migrations with DB_URL: postgres://$(PG_USER)@$(PG_HOST):$(PG_PORT)/$(PG_DB)"
-	migrate -path $(MIGRATIONS_DIR) -database "$(DB_URL)" down
+diff: ## Compare two local files 
+	@echo "$(TERM_BOLD)» Comparing '$(OLD_SCHEMA)' and '$(SCHEMA_FILE)'...$(TERM_RESET)"
+	@if [ ! -f "$(OLD_SCHEMA)" ]; then \
+		echo "$(TERM_RED)✘ Error:$(TERM_RESET) File '$(OLD_SCHEMA)' not found."; \
+		exit 1; \
+	fi
+	@if [ ! -f "$(SCHEMA_FILE)" ]; then \
+		echo "$(TERM_RED)✘ Error:$(TERM_RESET) File '$(SCHEMA_FILE)' not found."; \
+		exit 1; \
+	fi
+	@LOG_LEVEL=INFO go tool psqldef $(OLD_SCHEMA) < $(SCHEMA_FILE)
+
+dump: ## Dump current DB schema to migrations/old-schema.sql (Schema Only)
+	@echo "$(TERM_BOLD)» Dumping schema from DB...$(TERM_RESET)"
+	@mkdir -p migrations
+	@PGSSLMODE=disable PGPASSWORD=$(PG_PASSWORD) pg_dump -h $(PG_HOST) -p $(PG_PORT) -U $(PG_USER) --schema-only --no-owner --no-privileges $(PG_DB) > migrations/pg_dump.sql
+	@echo "$(TERM_GREEN)✔ Dumped to $(OLD_SCHEMA)$(TERM_RESET)"
 
 start-dev-db:
 	$(CONTAINER_CMD) compose -f docker-compose.dev.yaml up -d

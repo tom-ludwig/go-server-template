@@ -7,28 +7,26 @@ metadata:
     {{- include "go-server.labels" . | nindent 4 }}
     app.kubernetes.io/component: migration
   annotations:
+    # Runs before the migration job (-5)
     "helm.sh/hook": pre-install,pre-upgrade
     "helm.sh/hook-weight": "-10"
     "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
 data:
-  {{- /* Priority: existingConfigMap > files in values > files from migrations/ directory */}}
+  {{- /* Priority: existingConfigMap > schema in values > schemaFile from chart */}}
   {{- if not .Values.migrations.existingConfigMap }}
-    {{- if .Values.migrations.files }}
-      {{- /* Use files defined in values.yaml */}}
-      {{- range $filename, $content := .Values.migrations.files }}
-  {{ $filename }}: |
-{{ $content | indent 4 }}
-      {{- end }}
+    {{- if .Values.migrations.schema }}
+      {{- /* Use schema defined inline in values.yaml */}}
+  schema.sql: |
+{{ .Values.migrations.schema | indent 4 }}
     {{- else }}
-      {{- /* Auto-read from migrations/ directory in chart */}}
-      {{- $files := .Files.Glob "migrations/*.sql" }}
-      {{- if $files }}
-        {{- range $path, $content := $files }}
-  {{ base $path }}: |
-{{ $content | toString | indent 4 }}
-        {{- end }}
+      {{- /* Read schema file from chart directory */}}
+      {{- $schemaFile := .Values.migrations.schemaFile | default "migrations/schema.sql" }}
+      {{- $content := .Files.Get $schemaFile }}
+      {{- if $content }}
+  schema.sql: |
+{{ $content | indent 4 }}
       {{- else }}
-        {{- fail "No migration files found. Add SQL files to charts/go-server/migrations/ or define migrations.files in values.yaml" }}
+        {{- fail (printf "Schema file not found: %s. Add the file to your chart or define migrations.schema in values.yaml" $schemaFile) }}
       {{- end }}
     {{- end }}
   {{- end }}

@@ -1,0 +1,16 @@
+# sqldef.yaml configuration
+#
+
+enable_drop: true
+
+create_index_concurrently: true
+# target_schema: |
+# public
+
+# target_tables: |
+
+# skip_tables:
+# - ^schema_migrations$ # Example
+
+# skip_views:
+# - ^v_report_.* # Example

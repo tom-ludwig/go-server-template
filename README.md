@@ -97,13 +97,16 @@ The Makefile automatically reads `.env` values for migrations and database comma
 
 ## Migrations
 
-New: `make new NAME=xxx`
+This project uses **psqldef** for declarative schema migrations. The desired schema is defined in `migrations/schema.sql`.
 
-Up: `make up`
+**Make commands:**
+- `make plan` - Preview schema changes (dry-run)
+- `make apply` - Apply schema changes to database
+- `make diff` - Compare `migrations/current-schema.sql` with `migrations/schema.sql`
 
-Down: `make down`
+During development, you can dump the current live database schema into `migrations/current-schema.sql` and compare it with `migrations/schema.sql` to see what changes would be applied.
 
-Database connection settings are read from `.env` (see Configuration section above). Migrations live in `migrations/`.
+Database connection settings are read from `.env` (see Configuration section above).
 
 ## DB Schema
 
@@ -190,21 +193,81 @@ curl "http://localhost:8080/user?user_id=<uuid>"
 ### Docker
 
 ```bash
-docker build -t my-app .
+docker build -t go-server-template .
 ```
 
 Image is pushed to GitHub Container Registry via GitHub Actions on:
+
 - Push to `main` → `latest` tag
 - Git tags `v*.*.*` -> version tags
 
 ### Helm
 
 ```bash
-helm install my-app ./charts/go-server -f my-values.yaml
+helm install go-server-template ./charts/go-server -f my-values.yaml
 ```
 
 **Key features:**
+
 - Migrations run as pre-hook (blocks deployment if they fail)
-- SQL files auto-read from `migrations/` via symlink
-- direct values or `secretKeyRef` for CNPG secrets
+- Schema file auto-read from `migrations/schema.sql` via symlink
+- Direct values or `secretKeyRef` for CNPG secrets
 - TLS cert mounting for PostgreSQL mTLS
+
+### Local Testing with Minikube or Kind
+
+#### Prerequisites
+
+1. **Start a local Kubernetes cluster:**
+   ```bash
+   # For Kind
+   kind create cluster
+   
+   # Or for Minikube
+   minikube start
+   ```
+
+2. **Install CloudNativePG operator:**
+   ```bash
+   helm repo add cnpg https://cloudnative-pg.github.io/charts
+   helm upgrade --install cnpg \
+     --namespace cnpg-system \
+     --create-namespace \
+     cnpg/cloudnative-pg
+   ```
+
+3. **Create a PostgreSQL cluster:**
+   ```bash
+   cat <<EOF | kubectl apply -f -
+   apiVersion: postgresql.cnpg.io/v1
+   kind: Cluster
+   metadata:
+     name: cluster-example
+   spec:
+     instances: 1
+     storage:
+       size: 1Gi
+     bootstrap:
+       initdb:
+         database: app
+         owner: app
+   EOF
+   ```
+
+4. **Build and load the Docker image:**
+   ```bash
+   docker build -t go-server-template:latest .
+   
+   # For Kind
+   kind load docker-image go-server-template:latest
+   
+   # For Minikube
+   minikube image load go-server-template:latest
+   ```
+
+5. **Deploy the application:**
+   ```bash
+   helm install go-server-template ./charts/go-server \
+     -f ./charts/go-server/values-unsecure-cnpg-example.yaml
+   ```
+

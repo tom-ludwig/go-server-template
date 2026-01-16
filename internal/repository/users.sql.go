@@ -31,8 +31,8 @@ RETURNING user_id, email, first_name, last_name, created_at
 
 type CreateUserParams struct {
 	Email     pgtype.Text `json:"email"`
-	FirstName string      `json:"first_name"`
-	LastName  string      `json:"last_name"`
+	FirstName pgtype.Text `json:"first_name"`
+	LastName  pgtype.Text `json:"last_name"`
 }
 
 func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, error) {
