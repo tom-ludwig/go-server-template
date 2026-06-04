@@ -97,5 +97,10 @@ lint-fix:
 	@echo "→ Running golangci-lint with auto-fix..."
 	@golangci-lint run --fix
 
-.PHONY: new up down start-dev-db psql api-gen-code sqlc-gen-code build-swagger-docs generate download install-tools lint lint-fix
+# Runs all tests in the current directory and subdirectories
+# -tags=testing includes test utility files with //go:build testing
+test:
+	@go tool gotestsum --format testname -- -tags=testing ./...
+
+.PHONY: new up down start-dev-db psql api-gen-code sqlc-gen-code build-swagger-docs generate download install-tools lint lint-fix test
 
