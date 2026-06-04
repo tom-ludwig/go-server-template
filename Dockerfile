@@ -10,9 +10,8 @@ COPY . .
 
 RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o server .
 
-FROM alpine:latest
-
-RUN apk add --no-cache ca-certificates
+FROM gcr.io/distroless/static-debian13:nonroot 
+#:debug
 
 WORKDIR /app
 
