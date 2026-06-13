@@ -162,8 +162,7 @@ func connectToDatabase(cfg *config.Config) (*pgxpool.Pool, error) {
 		return nil, fmt.Errorf("failed to parse database configuration: %w", err)
 	}
 
-	// Attach OTel pgx tracer. Safe when tracing is disabled — emits to the
-	// no-op tracer provider.
+	// Attach OTel pgx tracer.
 	poolConfig.ConnConfig.Tracer = otelpgx.NewTracer()
 
 	// Create pool with timeout context
