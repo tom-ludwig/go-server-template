@@ -134,6 +134,18 @@ env:
   OIDC_AUDIENCE:
     value: ""
 
+  # OpenTelemetry tracing
+  # OTEL_EXPORTER_OTLP_ENDPOINT:
+  #   value: "http://otel-collector.observability.svc.cluster.local:4317"
+  # OTEL_EXPORTER_OTLP_PROTOCOL:
+  #   value: "grpc"
+  # OTEL_SERVICE_NAME:
+  #   value: "go-server-template"
+  # OTEL_RESOURCE_ATTRIBUTES:
+  #   value: "deployment.environment=prod"
+  # OTEL_TRACES_SAMPLER:
+  #   value: "parentbased_always_on"
+
 # Additional environment variables (merged with env above)
 extraEnv: []
 # - name: CUSTOM_VAR
