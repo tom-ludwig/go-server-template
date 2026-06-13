@@ -2,12 +2,16 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
+	"github.com/exaring/otelpgx"
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/joho/godotenv"
@@ -18,6 +22,7 @@ import (
 	"com.tom-ludwig/go-server-template/internal/middleware"
 	"com.tom-ludwig/go-server-template/internal/repository"
 	"com.tom-ludwig/go-server-template/internal/routes"
+	"com.tom-ludwig/go-server-template/internal/tracing"
 )
 
 func main() {
@@ -38,6 +43,22 @@ func main() {
 	}
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, opts))
 	slog.SetDefault(logger)
+
+	// Setup OpenTelemetry tracing. Auto-enables when OTEL_EXPORTER_OTLP_ENDPOINT
+	// is set; otherwise installs only the W3C trace-context propagator so
+	// upstream traceparent headers are still continued on outgoing calls.
+	shutdownTracer, err := tracing.Setup(context.Background())
+	if err != nil {
+		slog.Error("Failed to setup tracing", "error", err)
+		os.Exit(1)
+	}
+	defer func() {
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := shutdownTracer(shutdownCtx); err != nil {
+			slog.Error("Failed to shutdown tracer", "error", err)
+		}
+	}()
 
 	dbpool, err := connectToDatabase(cfg)
 	if err != nil {
@@ -71,10 +92,10 @@ func main() {
 	if cfg.LogLevel == slog.LevelDebug {
 		// Add swagger specs here when you create new OpenAPI files
 		swaggers := []*openapi3.T{}
-		if s, err := health.GetSwagger(); err == nil {
+		if s, err := health.GetSpec(); err == nil {
 			swaggers = append(swaggers, s)
 		}
-		if s, err := users.GetSwagger(); err == nil {
+		if s, err := users.GetSpec(); err == nil {
 			swaggers = append(swaggers, s)
 		}
 		routes.PrintRoutes(router, swaggers)
@@ -90,10 +111,28 @@ func main() {
 	}
 
 	slog.Info("Server starting", "port", cfg.Port, "log_level", cfg.LogLevel.String())
-	err = server.ListenAndServe()
-	if err != nil && err != http.ErrServerClosed {
-		slog.Error("Server failed to start", "error", err)
-		os.Exit(1)
+
+	srvErr := make(chan error, 1)
+	go func() {
+		srvErr <- server.ListenAndServe()
+	}()
+
+	stop := make(chan os.Signal, 1)
+	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
+
+	select {
+	case err := <-srvErr:
+		if err != nil && !errors.Is(err, http.ErrServerClosed) {
+			slog.Error("Server failed to start", "error", err)
+			os.Exit(1)
+		}
+	case sig := <-stop:
+		slog.Info("Shutdown signal received", "signal", sig.String())
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		if err := server.Shutdown(shutdownCtx); err != nil {
+			slog.Error("Server shutdown error", "error", err)
+		}
 	}
 }
 
@@ -118,11 +157,15 @@ func connectToDatabase(cfg *config.Config) (*pgxpool.Pool, error) {
 	}
 
 	// Parse config to validate DSN format, then create pool with context timeout
-	config, err := pgxpool.ParseConfig(dsn)
+	poolConfig, err := pgxpool.ParseConfig(dsn)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse database configuration: %w", err)
 	}
 
+	// Attach OTel pgx tracer. Safe when tracing is disabled — emits to the
+	// no-op tracer provider.
+	poolConfig.ConnConfig.Tracer = otelpgx.NewTracer()
+
 	// Create pool with timeout context
-	return pgxpool.NewWithConfig(ctx, config)
+	return pgxpool.NewWithConfig(ctx, poolConfig)
 }

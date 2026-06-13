@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5/middleware"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // ANSI color codes
@@ -116,13 +117,21 @@ func RequestLogger(debugMode bool) func(next http.Handler) http.Handler {
 					level = slog.LevelWarn
 				}
 
-				slog.Log(r.Context(), level, "HTTP request",
+				attrs := []any{
 					"method", r.Method,
 					"path", r.URL.Path,
 					"status", status,
 					"duration", duration.String(),
 					"ip", r.RemoteAddr,
-				)
+				}
+				// Correlate logs with traces when an active span is present.
+				if sc := trace.SpanContextFromContext(r.Context()); sc.IsValid() {
+					attrs = append(attrs,
+						"trace_id", sc.TraceID().String(),
+						"span_id", sc.SpanID().String(),
+					)
+				}
+				slog.Log(r.Context(), level, "HTTP request", attrs...)
 			}
 		})
 	}

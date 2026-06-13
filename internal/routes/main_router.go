@@ -2,6 +2,7 @@ package routes
 
 import (
 	"log/slog"
+	"net/http"
 	"os"
 
 	"github.com/getkin/kin-openapi/openapi3filter"
@@ -9,6 +10,7 @@ import (
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
 	oapimiddleware "github.com/oapi-codegen/nethttp-middleware"
+	"github.com/riandyrn/otelchi"
 
 	"com.tom-ludwig/go-server-template/internal/api/health"
 	"com.tom-ludwig/go-server-template/internal/api/users"
@@ -16,6 +18,7 @@ import (
 	"com.tom-ludwig/go-server-template/internal/handler"
 	"com.tom-ludwig/go-server-template/internal/middleware"
 	"com.tom-ludwig/go-server-template/internal/repository"
+	"com.tom-ludwig/go-server-template/internal/tracing"
 )
 
 func NewRouter(cfg *config.Config, queries *repository.Queries, jwtAuth *middleware.JWTAuth) chi.Router {
@@ -23,6 +26,17 @@ func NewRouter(cfg *config.Config, queries *repository.Queries, jwtAuth *middlew
 
 	// Core middleware (applied to all routes)
 	r.Use(chimiddleware.RequestID)
+	// Tracing middleware: must run before RequestLogger so the logger sees the
+	// active span, and uses WithChiRoutes(r) so span names use the route
+	// template (e.g. "/users/{id}") rather than the high-cardinality raw path.
+	r.Use(otelchi.Middleware(
+		tracing.ServiceName(),
+		otelchi.WithChiRoutes(r),
+		otelchi.WithRequestMethodInSpanName(true),
+		otelchi.WithFilter(func(r *http.Request) bool {
+			return r.URL.Path != "/healthz" && r.URL.Path != "/livez" && r.URL.Path != "/readyz"
+		}),
+	))
 	// r.Use(chimiddleware.RealIP)
 	r.Use(middleware.RequestLogger(cfg.LogLevel == slog.LevelDebug))
 	r.Use(chimiddleware.Recoverer)
@@ -55,7 +69,7 @@ func mountHealthAPI(r chi.Router, queries *repository.Queries) {
 	healthHandler := handler.NewHealthHandler(queries)
 	strictHealthServer := health.NewStrictHandler(healthHandler, nil)
 
-	healthSwagger, err := health.GetSwagger()
+	healthSwagger, err := health.GetSpec()
 	if err != nil {
 		slog.Error("Failed to load health swagger spec", "error", err)
 		os.Exit(1)
@@ -72,7 +86,7 @@ func mountUsersAPI(r chi.Router, queries *repository.Queries, jwtAuth *middlewar
 	userHandler := handler.NewUserHandler(queries)
 	strictUsersServer := users.NewStrictHandler(userHandler, nil)
 
-	usersSwagger, err := users.GetSwagger()
+	usersSwagger, err := users.GetSpec()
 	if err != nil {
 		slog.Error("Failed to load users swagger spec", "error", err)
 		os.Exit(1)
