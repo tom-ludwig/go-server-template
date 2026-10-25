@@ -5,20 +5,20 @@ go 1.26.0
 require (
 	github.com/exaring/otelpgx v0.13.0
 	github.com/fatih/color v1.19.0
-	github.com/getkin/kin-openapi v0.151.0
+	github.com/getkin/kin-openapi v0.152.0
 	github.com/go-chi/chi/v5 v5.5.0
 	github.com/go-chi/cors v1.2.2
 	github.com/google/uuid v1.6.0
 	github.com/jackc/pgx/v5 v5.11.0
 	github.com/joho/godotenv v1.5.1
 	github.com/lestrrat-go/httprc/v3 v3.0.6
-	github.com/lestrrat-go/jwx/v3 v3.3.0
-	github.com/oapi-codegen/nethttp-middleware v1.2.0
-	github.com/oapi-codegen/oapi-codegen/v2 v2.8.0
-	github.com/oapi-codegen/runtime v1.7.0
+	github.com/lestrrat-go/jwx/v3 v3.4.0
+	github.com/oapi-codegen/nethttp-middleware v1.3.1
+	github.com/oapi-codegen/oapi-codegen/v2 v2.8.1
+	github.com/oapi-codegen/runtime v1.8.0
 	github.com/riandyrn/otelchi v0.12.3
 	github.com/sqlc-dev/sqlc v1.31.1
-	github.com/sqldef/sqldef/v3 v3.11.26
+	github.com/sqldef/sqldef/v3 v3.11.27
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.72.0
 	go.opentelemetry.io/otel v1.47.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.47.0
@@ -48,8 +48,8 @@ require (
 	github.com/go-logr/logr v1.4.4 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-openapi/jsonpointer v1.0.0 // indirect
-	github.com/go-sql-driver/mysql v1.10.0 // indirect
-	github.com/goccy/go-json v0.10.6 // indirect
+	github.com/go-sql-driver/mysql v1.10.1 // indirect
+	github.com/goccy/go-json v0.11.2 // indirect
 	github.com/goccy/go-yaml v1.19.2 // indirect
 	github.com/google/cel-go v0.28.0 // indirect
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510 // indirect
@@ -101,7 +101,6 @@ require (
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect
 	go.yaml.in/yaml/v3 v3.0.5 // indirect
-	golang.org/x/crypto v0.57.0 // indirect
 	golang.org/x/exp v0.0.0-20251125195548-87e1e737ad39 // indirect
 	golang.org/x/mod v0.41.0 // indirect
 	golang.org/x/net v0.59.0 // indirect
