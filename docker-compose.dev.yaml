@@ -1,6 +1,6 @@
 services:
   postgres:
-    image: postgres:18
+    image: postgres:19
     container_name: postgres
     restart: always
     environment:
@@ -19,7 +19,7 @@ services:
       - pgdata:/var/lib/postgresql
 
   pocket-postgres:
-    image: postgres:18
+    image: postgres:19
     container_name: pocket-postgres
     restart: always
     environment:
